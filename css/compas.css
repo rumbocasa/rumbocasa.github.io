@@ -1,0 +1,60 @@
+/* Rumbo — Compas: capa de compañeros (Coral y Oreo) sobre la app.
+   Prefijo cp-. Solo se animan transform y opacity. La capa no recibe toques: solo perritos, pelota, burbuja y «x». */
+.cp-layer{position:fixed;inset:0;z-index:30;pointer-events:none;overflow:hidden;contain:layout style;transition:opacity .2s;
+  --cp-w:76px;--cp-h:calc(var(--cp-w)*1.0833);--cp-shelf:calc(84px + env(safe-area-inset-bottom,0px))}
+.cp-layer.cp-dim{opacity:0;visibility:hidden}
+body.locked .cp-layer{display:none}
+@media (max-width:419.98px){.cp-layer{--cp-w:64px}}
+
+/* Repisa: justo encima de la barra inferior, a la izquierda */
+.cp-floor{position:absolute;left:0;bottom:var(--cp-shelf);width:1px;height:0}
+.cp-pet{position:absolute;left:0;bottom:var(--cp-shelf);width:var(--cp-w);height:var(--cp-h);pointer-events:auto;cursor:pointer;border-radius:22px;outline:0;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.cp-pet.cp-busy{pointer-events:none}
+.cp-hop,.cp-sq,.cp-flip{width:100%;height:100%}
+.cp-sq{transform-origin:50% 100%}
+.cp-flip{position:relative}
+.cp-front,.cp-side{position:absolute;inset:0}
+.cp-side{opacity:0}
+.cp-run .cp-side{opacity:1}
+.cp-run .cp-front{opacity:0}
+.cp-pet .dog{display:block;width:100%;height:100%;overflow:visible}
+.cp-pet .dog .shadow,.cp-side .dog>ellipse:first-of-type{display:none}
+.cp-shadow{position:absolute;left:12%;right:12%;bottom:-4px;height:10px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.34),transparent)}
+.cp-puff{position:absolute;left:0;bottom:calc(var(--cp-shelf) - 2px);width:10px;height:10px;border-radius:50%;background:var(--fg,#FFF0D4);opacity:0;pointer-events:none}
+
+/* Burbuja (AA: --bubble / --bubble-fg) */
+.cp-bub{position:absolute;left:8px;bottom:calc(var(--cp-shelf) + var(--cp-h) + 14px);z-index:2;width:max-content;max-width:min(270px,calc(100vw - 24px));pointer-events:none;
+  background:var(--bubble,#FFF8EC);color:var(--bubble-fg,#2A1B15);border-radius:18px;padding:10px 13px 11px;font-size:13px;line-height:1.38;font-weight:500;text-align:left;
+  box-shadow:0 12px 30px rgba(0,0,0,.25);transform-origin:var(--cp-tail,38px) 100%;transform:translateY(6px) scale(.6);opacity:0;
+  transition:transform .45s cubic-bezier(.34,1.56,.64,1),opacity .2s}
+.cp-bub.cp-show{transform:none;opacity:1;pointer-events:auto}
+.cp-bub::after{content:"";position:absolute;left:calc(var(--cp-tail,38px) - 6px);bottom:-5px;width:12px;height:12px;background:inherit;transform:rotate(45deg);border-radius:3px}
+.cp-who{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A4A1C;margin-bottom:2px}
+.cp-tag{font-weight:600;font-size:9.5px;letter-spacing:.06em;padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.07);color:#5C4638}
+.cp-tx{margin:0;overflow-wrap:anywhere}
+.cp-ok{display:block;margin:9px 0 0 auto;min-height:44px;padding:0 18px;border:0;border-radius:999px;font:700 13px/1 var(--ui,system-ui,sans-serif);
+  background:var(--bubble-fg,#2A1B15);color:var(--bubble,#FFF8EC);cursor:pointer;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.cp-ok:active{transform:scale(.95)}
+
+/* «x» diminuta: aparece al pasar el cursor, al tocar a un perrito o con el teclado */
+.cp-x{position:absolute;left:0;bottom:calc(var(--cp-shelf) + var(--cp-h) - 20px);z-index:1;width:44px;height:44px;display:grid;place-items:center;padding:0;border:0;background:none;
+  opacity:0;pointer-events:none;cursor:pointer;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+.cp-x svg{width:20px;height:20px;padding:5px;box-sizing:border-box;border-radius:50%;background:var(--bubble,#FFF8EC);stroke:var(--bubble-fg,#2A1B15);stroke-width:1.8;stroke-linecap:round;fill:none;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.cp-pet:hover~.cp-x,.cp-x:hover,.cp-x:focus-visible,.cp-hot .cp-x{opacity:1;pointer-events:auto}
+
+/* Pelota: 30 px visibles, 44 px de zona táctil */
+.cp-ball{position:absolute;left:0;top:0;z-index:3;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:none;pointer-events:auto;cursor:grab;
+  touch-action:none;transform-origin:50% 100%;will-change:transform;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+.cp-ball::after{content:"";position:absolute;inset:-7px;border-radius:50%}
+.cp-ball svg{display:block;width:100%;height:100%;overflow:visible}
+.cp-ball.cp-grab{cursor:grabbing}
+.cp-ball.cp-off{pointer-events:none}
+
+.cp-pet:focus-visible,.cp-x:focus-visible,.cp-ball:focus-visible{outline:2px solid var(--a1,#F2B458);outline-offset:2px}
+.cp-ok:focus-visible{outline:2px solid var(--bubble-fg,#2A1B15);outline-offset:2px}
+
+@media (prefers-reduced-motion:reduce){
+  .cp-layer,.cp-bub,.cp-x,.cp-ok{transition:none}
+  .cp-bub{transform:none}
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Rumbo · Vale y David",
+  "short_name": "Rumbo",
+  "description": "La casa de Vale y David: plata, pagos, metas y planes.",
+  "lang": "es-CO",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A1122",
+  "theme_color": "#0A1122",
+  "icons": [
+    {"src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "iconos/icono-mascara-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

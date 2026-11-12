@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+<title>Rumbo</title>
+<defs>
+<linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5C360A"/><stop offset="1" stop-color="#1C1003"/></linearGradient>
+<linearGradient id="k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9DAE"/><stop offset="1" stop-color="#FFE2A8"/></linearGradient>
+<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9A5A10"/><stop offset="1" stop-color="#452907"/></linearGradient>
+<linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C23A57"/><stop offset="1" stop-color="#A8324C"/></linearGradient>
+<linearGradient id="h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFBF3"/><stop offset="1" stop-color="#FFEBC6"/></linearGradient>
+<radialGradient id="g" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="#FFF8DC"/><stop offset=".55" stop-color="#FFE2A8"/><stop offset="1" stop-color="#F2B458"/></radialGradient>
+<clipPath id="c"><circle cx="50" cy="50" r="44"/></clipPath>
+</defs>
+<rect width="100" height="100" rx="22.5" fill="url(#i)"/>
+<g transform="translate(10 10) scale(.8)">
+<circle cx="50" cy="50" r="44" fill="url(#k)"/>
+<g clip-path="url(#c)">
+<circle cx="50" cy="44" r="25" fill="#FFF6DC" opacity=".35"/>
+<circle cx="50" cy="44" r="17" fill="url(#g)"/>
+<path d="M0 66Q28 52 54 62T100 58V100H0Z" fill="#C23A57" opacity=".42"/>
+<g transform="translate(30 47) scale(.4)">
+<rect x="24" y="46" width="52" height="40" rx="7" fill="url(#h)"/>
+<path d="M14 50L46 22Q50 18.5 54 22L86 50Q88 53 84.5 53H15.5Q12 53 14 50Z" fill="url(#t)"/>
+<rect x="31" y="59" width="13" height="13" rx="3.5" fill="#FFD36E"/>
+<path d="M55 86V70Q55 63.5 61.5 63.5Q68 63.5 68 70V86Z" fill="#452907"/>
+</g>
+<path d="M0 80Q25 70 50 76T100 73V100H0Z" fill="url(#d)"/>
+</g>
+<circle cx="50" cy="50" r="43" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+</g>
+</svg>
