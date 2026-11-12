@@ -749,9 +749,10 @@ function settingsStep(confirm, keep) {
 // v1.4 · Restaurar una copia: elegir el archivo, ver el resumen y confirmar
 function importStep() {
   if (typeof Nube !== 'object') return;
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json';
+  document.querySelectorAll('#impFile').forEach(x => x.remove());
+  const inp = document.createElement('input'); inp.type = 'file'; inp.id = 'impFile'; inp.accept = 'application/json,.json'; inp.hidden = true; inp.setAttribute('aria-hidden', 'true'); document.body.appendChild(inp);
   inp.onchange = async () => {
-    const f = inp.files && inp.files[0]; if (!f) return;
+    const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
     try { const r = await Nube.leerCopia(f); importStep.copia = r.copia;
       $('#setTitle').textContent = 'Restaurar copia';
       setBody.innerHTML = `<p class="muted" style="margin:0 0 12px">${esc(r.resumen)}</p><p class="muted" style="margin:0 0 16px">Los datos actuales se reemplazan por los de la copia${Nube.activo() ? ' y se suben a la nube para los dos' : ''}. Antes guardamos un respaldo en este navegador.</p><div class="acts"><button class="btn ghost" id="setCancel">Cancelar</button><button class="btn pri" id="impOk">Restaurar</button></div>`;
