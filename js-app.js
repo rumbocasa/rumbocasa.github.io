@@ -4,7 +4,17 @@ const fmt = n => '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.
 const short = n => n >= 999500 ? '$' + (n / 1e6).toFixed(n % 1e6 ? 1 : 0).replace('.', ',') + 'M' : '$' + Math.round(n / 1e3) + 'k';
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 var io, spy;
-const T = ms => reduce ? Math.min(ms, 30) : ms;
+// v2.2 · Ritmo tranquilo: todo un poco más pausado (pedido de Vale). Se apaga en Ajustes → Animaciones tranquilas.
+const RITMO_KEY = 'hogar:v1:ritmo';
+let RITMO = (() => { try { return localStorage.getItem(RITMO_KEY) === 'normal' ? 1 : 1.45; } catch (e) { return 1.45; } })();
+const T0 = ms => reduce ? Math.min(ms, 30) : ms;            // duración de una animación hecha con .animate() (el ritmo la escala aparte)
+const T = ms => reduce ? Math.min(ms, 30) : ms * RITMO;     // esperas que acompañan animaciones (y avisos en pantalla)
+// Animaciones y transiciones de CSS: se reproducen a 1/RITMO de velocidad
+const ritmoCSS = a => { if (RITMO !== 1 && !a._ritmo) { a._ritmo = true; a.playbackRate = 1 / RITMO; } };
+document.addEventListener('animationstart', e => { try { e.target.getAnimations().forEach(ritmoCSS); } catch (er) {} }, true);
+document.addEventListener('transitionrun', e => { try { e.target.getAnimations().forEach(ritmoCSS); } catch (er) {} }, true);
+// Animaciones hechas con Element.animate(): se alarga su duración y su retraso
+{ const anim0 = Element.prototype.animate; Element.prototype.animate = function (kf, o) { if (RITMO !== 1 && !reduce) { if (typeof o === 'number') o *= RITMO; else if (o && typeof o === 'object') o = {...o, ...(o.duration ? {duration: o.duration * RITMO} : {}), ...(o.delay ? {delay: o.delay * RITMO} : {})}; } return anim0.call(this, kf, o); }; }
 const sleep = ms => new Promise(r => setTimeout(r, T(ms)));
 const now = new Date(), today = now.getDate();
 const monthName = now.toLocaleDateString('es-CO', {month: 'long'});
@@ -758,7 +768,7 @@ function settingsStep(confirm, keep) {
     : `${setGroup('Ustedes', `
         <div class="set-seg" role="group" aria-label="Perfil activo">${['V', 'D'].map(w => `<button data-prof="${w}" aria-pressed="${S.profile === w}">${Avatares.head(w, 30, 'happy', 'decor', true)}<span>${esc(personName(w))}</span></button>`).join('')}</div>
         ${['V', 'D'].map(w => setRow('setProf' + w, 'user', w === 'V' ? 'a3' : 'a2', (S.people[w] ? 'Editar el perfil de ' : 'Crear el perfil de ') + (w === 'V' ? 'Valentina' : 'David'), S.people[w] ? 'Gustos, cumpleaños y cómo le hablan Coral y Oreo' : 'Cuéntenle a Coral y Oreo quién es')).join('')}`)}
-      ${setGroup('Apariencia', setSwitch('setTheme', theme === 'dark' ? 'moon' : 'sun', 'Modo oscuro', theme === 'dark' ? 'Noche azul' : 'Atardecer claro', theme === 'dark'))}
+      ${setGroup('Apariencia', setSwitch('setTheme', theme === 'dark' ? 'moon' : 'sun', 'Modo oscuro', theme === 'dark' ? 'Noche azul' : 'Atardecer claro', theme === 'dark') + setSwitch('setRitmo', 'clock', 'Animaciones tranquilas', RITMO !== 1 ? 'Más pausadas, para disfrutarlas' : 'Velocidad normal', RITMO !== 1))}
       ${setGroup('Este dispositivo', setRow('setInstall', 'phone', 'a3', 'Instalar Rumbo como app', installSub()))}
       ${setGroup('Seguridad', setSwitch('setFace', 'face', 'Face ID al entrar', S.faceId === true ? 'Se pide al entrar y al volver a la app' : 'Apagado: entran eligiendo su perfil', S.faceId === true) + setRow('setLock', 'lock', 'mu', 'Bloquear ahora', 'Vuelve a la pantalla de entrada'))}
       ${setGroup('La casa', setRow('setCuentas', 'edit', 'a2', 'Pagos, deudas y topes', `${S.pays.length} pagos fijos · ${S.debts.length} ${S.debts.length === 1 ? 'deuda' : 'deudas'} · comprobantes`) + setRow('setEdit', 'wallet', 'a1', 'Ingreso y presupuesto', `Ingreso ${fmt(S.income)} · ${S.cats.length} categorías`))}
@@ -846,6 +856,7 @@ setBody.addEventListener('click', e => {
   else if (id === 'setNube') { closeSettings(); Nube.salir().then(() => { gateResume = ''; showGate(); }); }
   else if (id === 'setInstall') { closeSettings(); installApp(); }
   else if (id === 'setCuentas') { closeSettings(); if (typeof Cuentas !== 'undefined') Cuentas.open('pagos'); }
+  else if (id === 'setRitmo') { RITMO = RITMO !== 1 ? 1 : 1.45; try { localStorage.setItem(RITMO_KEY, RITMO === 1 ? 'normal' : 'tranquilo'); } catch (e) {} settingsStep(false, true); $('#setRitmo').focus(); island({icon: 'clock', color: 'a1', title: RITMO !== 1 ? 'Animaciones tranquilas' : 'Velocidad normal', sub: RITMO !== 1 ? 'Todo se mueve con más calma' : 'Todo vuelve a su ritmo original', dur: 2400}); }
   else if (id === 'setTheme') { setTheme(theme === 'light' ? 'dark' : 'light'); settingsStep(false, true); $('#setTheme').focus(); }
   else if (id === 'setCompas') { S.compas = S.compas === false; save(); compa('setEnabled', S.compas); if (S.compas) { if (!enterApp.compasInit) { enterApp.compasInit = true; compa('init'); } compa('show'); } settingsStep(false, true); $('#setCompas').focus(); }
   else if (id === 'setLock') { closeSettings(); gateResume = ''; showGate(); }
@@ -879,7 +890,7 @@ function showGate() {
   // v1.4: con la nube activa cada uno entra con su cuenta (correo o Google) y no se elige perfil
   if (typeof Nube === 'object' && Nube.activo()) Nube.entrada();
   else { gateStep('pick', true); const lastBtn = document.querySelector(`.gp[data-gp="${S.profile}"]`); lastBtn && lastBtn.focus({preventScroll: true}); }
-  $('#gateCard').animate([{opacity: 0, transform: 'translateY(20px) scale(.96)'}, {opacity: 1, transform: 'none'}], {duration: T(700), easing: 'cubic-bezier(.2,1.2,.4,1)'});
+  $('#gateCard').animate([{opacity: 0, transform: 'translateY(20px) scale(.96)'}, {opacity: 1, transform: 'none'}], {duration: T0(700), easing: 'cubic-bezier(.2,1.2,.4,1)'});
 }
 // Cambia de paso dentro de la entrada (elegir perfil → Face ID → carga) con una transición corta
 function gateStep(s, silent) {
@@ -930,11 +941,11 @@ document.addEventListener('visibilitychange', () => {
 $('#faceBtn').onclick = async () => {
   const btn = $('#faceBtn'); btn.disabled = true; clearTimeout(pickProfile.t); $('#gateBack').hidden = true; $('#faceL').textContent = 'Reconociendo…';
   const sc = $('#scan');
-  sc.animate([{transform: 'rotate(0)'}, {transform: 'rotate(720deg)'}], {duration: T(1100), easing: 'cubic-bezier(.45,0,.2,1)'});
+  sc.animate([{transform: 'rotate(0)'}, {transform: 'rotate(720deg)'}], {duration: T0(1100), easing: 'cubic-bezier(.45,0,.2,1)'});
   await sleep(1050);
-  sc.animate([{strokeDasharray: '80 236'}, {strokeDasharray: '316 0'}], {duration: T(260), fill: 'forwards'}); sc.style.stroke = 'var(--ok)';
+  sc.animate([{strokeDasharray: '80 236'}, {strokeDasharray: '316 0'}], {duration: T0(260), fill: 'forwards'}); sc.style.stroke = 'var(--ok)';
   $('#faceIc').style.opacity = 0;
-  $('#faceTk').animate([{strokeDashoffset: 40}, {strokeDashoffset: 0}], {duration: T(380), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards'});
+  $('#faceTk').animate([{strokeDashoffset: 40}, {strokeDashoffset: 0}], {duration: T0(380), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards'});
   $('#faceL').textContent = '¡Eres tú! Entrando…';
   await sleep(700);
   enterApp();
@@ -954,12 +965,12 @@ async function enterApp() {
     k < 1 ? requestAnimationFrame(st) : r(); }; requestAnimationFrame(st); });
   $('#loadRing').classList.add('done'); lbl.textContent = '¡Listo!';
   await sleep(380);
-  $('#gateCard').animate([{opacity: 1, transform: 'scale(1)', filter: 'blur(0)'}, {opacity: 0, transform: 'scale(1.12)', filter: 'blur(8px)'}], {duration: T(500), easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards'});
+  $('#gateCard').animate([{opacity: 1, transform: 'scale(1)', filter: 'blur(0)'}, {opacity: 0, transform: 'scale(1.12)', filter: 'blur(8px)'}], {duration: T0(500), easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards'});
   await sleep(320);
   gate.hidden = true; document.body.classList.remove('locked'); gateOpen = false;
   document.querySelector('.app').inert = false; document.querySelector('.dock').inert = false;
-  document.querySelector('.app').animate([{opacity: 0, transform: 'scale(.97)', filter: 'blur(10px)'}, {opacity: 1, transform: 'none', filter: 'blur(0)'}], {duration: T(700), easing: 'cubic-bezier(.2,.8,.2,1)'});
-  document.querySelector('.dock').animate([{opacity: 0, transform: 'translateY(40px)'}, {opacity: 1, transform: 'none'}], {duration: T(700), delay: T(250), easing: 'cubic-bezier(.2,1.3,.4,1)', fill: 'backwards'});
+  document.querySelector('.app').animate([{opacity: 0, transform: 'scale(.97)', filter: 'blur(10px)'}, {opacity: 1, transform: 'none', filter: 'blur(0)'}], {duration: T0(700), easing: 'cubic-bezier(.2,.8,.2,1)'});
+  document.querySelector('.dock').animate([{opacity: 0, transform: 'translateY(40px)'}, {opacity: 1, transform: 'none'}], {duration: T0(700), delay: T0(250), easing: 'cubic-bezier(.2,1.3,.4,1)', fill: 'backwards'});
   const todayK = Momentos.dayKey(new Date()), vis = Momentos.visit(S.last, S.streak, todayK);
   const sinGasto = Momentos.sinGastoAyer(S.moves, vis.prev, todayK);
   S.last = vis.last; S.streak = vis.streak; const nl = checkBadges(); save();
