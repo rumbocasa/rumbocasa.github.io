@@ -175,6 +175,28 @@ const MetaPlan = (() => {
         ${withA.length ? `<div class="mp-comp" role="img" aria-label="Composición del plan: ${esc(top.map(x => `${x.c.n} ${Math.round(x.c.a / t.total * 100)} %`).join(', '))}">${withA.map(x => `<i style="flex:${x.c.a} 1 0;background:${SEG[x.i % SEG.length]}"></i>`).join('')}</div>
         <ul class="mp-leg">${top.map(x => `<li><i style="background:${SEG[x.i % SEG.length]}"></i><span>${esc(x.c.n)}</span><b class="mono">${Math.round(x.c.a / t.total * 100)}%</b></li>`).join('')}${withA.length > top.length ? `<li>y ${withA.length - top.length} más</li>` : ''}</ul>` : ''}`;
     },
+    // v2.1 · ¿Vamos a llegar?: fecha estimada con el aporte actual vs. la fecha de la meta, y tres medidores
+    ruta(g) {
+      const c = cols(g), p = g.plan, t = totals(p), n = p.itin.length, hechos = p.itin.filter(x => x.done).length;
+      const meter = (lbl, v, txt) => `<div class="mp-mt"><span>${lbl}</span><div class="mp-mt-bar"><i style="--v:${Math.max(0, Math.min(1, v || 0))};background:linear-gradient(90deg,${c[1]},${c[0]})"></i></div><b class="mono">${txt}</b></div>`;
+      const meters = `<div class="mp-mts">${g.open ? '' : meter('Plata', g.s / g.t, Math.round(g.s / g.t * 100) + '%')}${meter('Plan', n ? hechos / n : 0, n ? `${hechos}/${n}` : '—')}${meter('Costos pagados', t.total ? t.paid / t.total : 0, t.total ? Math.round(t.paid / t.total * 100) + '%' : '—')}</div>`;
+      if (g.open) return `<p class="mp-verd ok">${ic('trend')}<span>Meta abierta: cada abono suma sin presión de fecha.</span></p>${meters}`;
+      const falta = Math.max(0, g.t - g.s);
+      if (!falta) return `<p class="mp-verd ok">${ic('trophy')}<span><b>¡Meta completa!</b> Ya tienen la plata; ahora a disfrutar el plan.</span></p>${meters}`;
+      const hoy = new Date(), mes = d => d.toLocaleDateString('es-CO', {month: 'long', year: 'numeric'});
+      const meses = g.by ? Math.max(1, (g.by.getFullYear() - hoy.getFullYear()) * 12 + g.by.getMonth() - hoy.getMonth()) : 0, necesita = meses ? Math.ceil(falta / meses / 1000) * 1000 : 0;
+      let verd;
+      if (!(g.m > 0)) verd = `<p class="mp-verd gd">${ic('alert')}<span><b>Sin aporte mensual.</b> ${necesita ? `Para llegar en ${mes(g.by)} necesitan ${fmt(necesita)} al mes.` : 'Definan cuánto apartar cada mes y les digo cuándo llegan.'}</span></p>`;
+      else {
+        const k = Math.ceil(falta / g.m), eta = new Date(hoy.getFullYear(), hoy.getMonth() + k, 1);
+        const tarde = g.by ? (eta.getFullYear() - g.by.getFullYear()) * 12 + eta.getMonth() - g.by.getMonth() : 0;
+        verd = !g.by ? `<p class="mp-verd ok">${ic('cal')}<span>Con ${fmt(g.m)} al mes llegan en <b>${mes(eta)}</b> (${k} ${k === 1 ? 'mes' : 'meses'}).</span></p>`
+          : tarde <= 0 ? `<p class="mp-verd ok">${ic('ok')}<span><b>Llegan a tiempo.</b> Con ${fmt(g.m)} al mes la completan en ${mes(eta)}${tarde < 0 ? `, ${-tarde} ${-tarde === 1 ? 'mes' : 'meses'} antes` : ''}.</span></p>`
+          : `<p class="mp-verd al">${ic('alert')}<span><b>Llegarían ${tarde} ${tarde === 1 ? 'mes' : 'meses'} tarde</b> (${mes(eta)}). Para llegar en ${mes(g.by)} son ${fmt(necesita)} al mes.</span></p>`;
+      }
+      const usar = necesita && necesita !== g.m && (!(g.m > 0) || necesita > g.m) ? `<button class="btn acc mp-need" data-mp="useNeed" data-a="${necesita}">${ic('target')}Ahorrar ${fmt(necesita)} al mes${necesita >= 2000 ? ` · ${fmt(Math.ceil(necesita / 2000) * 1000)} por quincena` : ''}</button>` : '';
+      return verd + meters + usar;
+    },
     itinsum(g) {
       const p = g.plan, n = p.itin.length, d = p.itin.filter(x => x.done).length, c = cols(g);
       if (!n) return `<p class="mp-empty">Todavía no hay pasos. Un plan no es para cumplirlo al pie de la letra: es para llegar con ganas.</p>`;
@@ -185,12 +207,18 @@ const MetaPlan = (() => {
   };
 
   /* ---------- Bloques con controles (solo se repintan tras un clic) ---------- */
+  // v2.1: ícono según el concepto (tiquetes, hotel, tours, comida…)
+  const COST_IC = [[/tiquete|vuelo|avion|aerol|pasaje aereo/, 'plane'], [/hotel|hospedaje|airbnb|hostal|alojamiento|noche/, 'bed'], [/tour|excursi|entrada|show|tango|museo|parque|actividad/, 'star'],
+    [/comida|restaurante|cena|almuerzo|desayuno|vino|asado|mercado/, 'cup'], [/uber|taxi|transporte|bus|tren|carro|alquiler|gasolina|traslado/, 'car'], [/seguro|asistencia/, 'shield'],
+    [/maleta|ropa|equipaje|compras/, 'bag'], [/regalo|detalle|recuerdo/, 'gift'], [/cambio|dolar|peso|efectivo|divisa/, 'coin'], [/pasaporte|visa|tramite|documento/, 'key'], [/instalaci|envio|domicilio/, 'home']];
+  const costIc = n => { const t = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return (COST_IC.find(([r]) => r.test(t)) || [0, 'wallet'])[1]; };
   const costRow = (c, fresh) => `<div class="mp-row mp-cost${c.ok ? ' ok' : ''}${fresh ? ' mp-new' : ''}">
       <button class="mp-chk" data-mp="cok" data-id="${esc(c.id)}" data-fk="c:${esc(c.id)}:ok" aria-pressed="${!!c.ok}" aria-label="Ya está pago: ${esc(c.n)}" title="Ya está pago"><span>${CHK}</span></button>
+      <span class="mp-cic" aria-hidden="true">${ic(costIc(c.n))}</span>
       <input class="mp-in mp-ghost mp-cn" data-f="c.n" data-id="${esc(c.id)}" data-fk="c:${esc(c.id)}:n" value="${esc(c.n)}" maxlength="60" aria-label="Concepto" autocomplete="off">
       <input class="mp-in mp-ghost mp-ca mono" data-f="c.a" data-money data-id="${esc(c.id)}" data-fk="c:${esc(c.id)}:a" value="${fmt(c.a)}" inputmode="numeric" aria-label="Monto de ${esc(c.n)}" autocomplete="off">
       <button class="mp-x" data-mp="cdel" data-id="${esc(c.id)}" data-fk="c:${esc(c.id)}:x" aria-label="Borrar ${esc(c.n)}" title="Borrar">${ic('trash')}</button></div>`;
-  const itRow = (x, i, n, fresh) => `<div class="mp-row mp-it${x.done ? ' done' : ''}${fresh ? ' mp-new' : ''}">
+  const itRow = (x, i, n, fresh, next) => `<div class="mp-row mp-it${x.done ? ' done' : ''}${next ? ' next' : ''}${fresh ? ' mp-new' : ''}" style="--k:${i}">
       <button class="mp-chk" data-mp="idone" data-id="${esc(x.id)}" data-fk="i:${esc(x.id)}:ok" aria-pressed="${!!x.done}" aria-label="Hecho: ${esc(x.n)}" title="Hecho"><span>${CHK}</span></button>
       <input class="mp-in mp-ghost mp-itd" data-f="i.d" data-id="${esc(x.id)}" data-fk="i:${esc(x.id)}:d" value="${esc(x.d)}" maxlength="24" placeholder="Día o fecha" aria-label="Día o fecha" autocomplete="off">
       <input class="mp-in mp-ghost mp-itn" data-f="i.n" data-id="${esc(x.id)}" data-fk="i:${esc(x.id)}:n" value="${esc(x.n)}" maxlength="100" aria-label="Qué van a hacer" autocomplete="off">
@@ -217,7 +245,7 @@ const MetaPlan = (() => {
       const have = g.plan.costos.map(c => c.n.toLowerCase()), l = (SUG_C[g.plan.tipo] || []).filter(s => !have.includes(s.toLowerCase())).slice(0, 6);
       return l.length ? `<span class="mp-lbl">Ideas</span>${l.map((s, i) => `<button class="chip" data-mp="csug" data-n="${esc(s)}" data-fk="cs:${i}">${ic('plus')}<span>${esc(s)}</span></button>`).join('')}` : '';
     },
-    itin: g => g.plan.itin.map((x, i, a) => itRow(x, i, a.length, x.id === freshId)).join(''),
+    itin: g => { const nx = g.plan.itin.findIndex(x => !x.done); return g.plan.itin.map((x, i, a) => itRow(x, i, a.length, x.id === freshId, i === nx)).join(''); },
     itsug(g) {
       const have = g.plan.itin.map(c => c.n.toLowerCase()), l = (SUG_I[g.plan.tipo] || []).filter(s => !have.includes(s.toLowerCase())).slice(0, 5);
       return l.length ? `<span class="mp-lbl">Ideas</span>${l.map((s, i) => `<button class="chip" data-mp="isug" data-n="${esc(s)}" data-fk="is:${i}">${ic('plus')}<span>${esc(s)}</span></button>`).join('')}` : '';
@@ -290,6 +318,10 @@ const MetaPlan = (() => {
               <form class="mp-inline" data-form="abono" novalidate><input class="mp-in mono" name="a" data-money inputmode="numeric" placeholder="Otro monto" aria-label="Otro monto para abonar" autocomplete="off"><button class="btn pri" type="submit">${ic('plus')}Abonar</button></form>
             </div>
           </div>
+          <div class="glass mp-card mp-ruta" style="--i:1">
+            <div class="mp-h"><h3>¿Vamos a llegar?</h3></div>
+            <div data-mp-out="ruta"></div>
+          </div>
           <div class="glass mp-card" style="--i:1">
             <div class="mp-h"><h3>Presupuesto del plan</h3></div>
             <div data-mp-out="budget"></div>
@@ -316,7 +348,7 @@ const MetaPlan = (() => {
           <div class="glass mp-card" style="--i:4">
             <div class="mp-h"><h3 id="mpPlanH">${viaje ? 'Itinerario' : 'El plan, paso a paso'}</h3></div>
             <div data-mp-out="itinsum"></div>
-            <div class="mp-list" data-mp-in="itin">${ins.itin(g)}</div>
+            <div class="mp-list mp-tl" data-mp-in="itin">${ins.itin(g)}</div>
             <form class="mp-add mp-add-i" data-form="itin" novalidate>
               <input class="mp-in" name="d" maxlength="24" placeholder="Día 1 o 12 feb" aria-label="Día o fecha del paso nuevo" autocomplete="off">
               <input class="mp-in" name="n" maxlength="100" placeholder="¿Qué van a hacer?" aria-label="Paso nuevo" autocomplete="off">
@@ -432,6 +464,11 @@ const MetaPlan = (() => {
     icon(b) { const g = goal(), k = b.dataset.k; if (!ICONS.some(x => x[0] === k)) return; g.i = k; save(); refresh('custom', 'cover'); },
     color(b) { const g = goal(), c = PAIRS[+b.dataset.k]; if (!c) return; g.c = [c[0], c[1]]; save(); setVars(g); refresh('custom', 'cover'); },
     noDate() { const g = goal(); g.by = null; save(); const i = q('#mpBy'); if (i) { i.value = ''; i.focus({preventScroll: true}); } sync(); },
+    useNeed(b) {
+      const g = goal(), v = int(b.dataset.a); if (!g || !(v > 0)) return;
+      const prev = g.m, mi = q('[data-f="m"]'); g.m = v; save(); if (mi) mi.value = fmt(v); sync();
+      island({icon: 'target', color: 'ok', title: `Aporte de ${fmt(v)} al mes`, sub: 'Así llegan a tiempo', action: 'Deshacer', dur: 5200, onAction: () => { if (!S.goals.includes(g)) return; g.m = prev; save(); if (live(g)) { const m2 = q('[data-f="m"]'); if (m2) m2.value = prev ? fmt(prev) : ''; sync(); } }});
+    },
     useTotal() {
       const g = goal(), t = totals(g.plan).total; if (!(t > 0)) return;
       const prev = {open: g.open, t: g.t}, was = isFull(g), ti = q('[data-f="t"]');
@@ -445,14 +482,14 @@ const MetaPlan = (() => {
     },
     cok(b) {
       const c = cOf(b.dataset.id); if (!c) return;
-      c.ok = !c.ok; save(); b.setAttribute('aria-pressed', c.ok); b.closest('.mp-row').classList.toggle('ok', c.ok); sync('costsum');
+      c.ok = !c.ok; save(); b.setAttribute('aria-pressed', c.ok); b.closest('.mp-row').classList.toggle('ok', c.ok); sync('costsum', 'ruta');
     },
     cdel: b => removeFrom('costos', b.dataset.id, 'costos', 'Concepto', '[data-form="costo"] [name="n"]'),
     csug(b) { const c = addCost(oneLine(b.dataset.n, 60), 0); if (c) focusFk(`c:${c.id}:a`); },
     idone(b) {
       const g = goal(), x = iOf(b.dataset.id); if (!x) return;
       const was = allDone(g.plan);
-      x.done = !x.done; save(); b.setAttribute('aria-pressed', x.done); b.closest('.mp-row').classList.toggle('done', x.done); sync('itinsum');
+      x.done = !x.done; save(); b.setAttribute('aria-pressed', x.done); b.closest('.mp-row').classList.toggle('done', x.done); { let f = false; qa('.mp-it').forEach(r => { const nx = !f && !r.classList.contains('done'); if (nx) f = true; r.classList.toggle('next', nx); }); } sync('itinsum', 'ruta');
       if (!was && allDone(g.plan)) celebrate('plan');
     },
     iup: b => move(b, -1), idn: b => move(b, 1),
