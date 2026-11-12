@@ -104,7 +104,8 @@ select.cu-in option{background:var(--bg);color:var(--fg)}
 @keyframes cuUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 @media (min-width:640px){.cu-scrim{align-items:center}.cu-sheet{border-radius:28px;padding:22px}}
 .cu-ph{display:flex;align-items:center;gap:12px}
-.cu-ph>div{flex:1;min-width:0}
+.cu-ph>div:not(.tile){flex:1;min-width:0}
+.cu-ph>.tile{flex:none}
 .cu-ph h2{margin:0;font-size:20px;line-height:1.2}
 .cu-ph p{margin:2px 0 0;font-size:13px;color:var(--muted)}
 .cu-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0;padding:0;list-style:none}
