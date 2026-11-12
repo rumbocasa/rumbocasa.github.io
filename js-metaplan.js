@@ -202,7 +202,7 @@ const MetaPlan = (() => {
   const ins = {
     cover(g) {
       const s = g.plan.cover ? src(g.plan.cover) : '';
-      return `${s ? `<img src="${esc(s)}" alt="Portada de ${esc(g.n)}">` : `<div class="mp-cover-ic" aria-hidden="true">${ic(icon(g.i))}</div>`}
+      return `${s ? `<img src="${esc(s)}" alt="Portada de ${esc(g.n)}">` : (typeof Escenas === 'object' ? `<div class="mp-cover-esc" style="--g0:${g.c[0]};--g1:${g.c[1]}">${Escenas.escena(g, g.open || !g.t ? 0 : g.s / g.t, true)}</div>` : `<div class="mp-cover-ic" aria-hidden="true">${ic(icon(g.i))}</div>`)}
         <div class="mp-cover-in"><button class="mp-pillbtn mp-cover-btn" data-mp="changeCover" data-fk="cover">${ic('spark')}<span>${s ? 'Cambiar portada' : 'Poner portada'}</span></button></div>`;
     },
     custom(g) {
@@ -305,7 +305,7 @@ const MetaPlan = (() => {
             <div class="mp-h"><h3>Costos</h3><span class="mp-hs" data-mp-out="cn"></span></div>
             <div data-mp-out="costsum"></div>
             <div class="mp-list" data-mp-in="costos">${ins.costos(g)}</div>
-            <form class="mp-add c" data-form="costo" novalidate>
+            <form class="mp-add mp-add-c" data-form="costo" novalidate>
               <input class="mp-in" name="n" maxlength="60" placeholder="Concepto" aria-label="Concepto nuevo" autocomplete="off">
               <input class="mp-in mono" name="a" data-money inputmode="numeric" placeholder="$0" aria-label="Monto del concepto nuevo" autocomplete="off">
               <button class="btn pri" type="submit">${ic('plus')}Agregar</button></form>
@@ -317,7 +317,7 @@ const MetaPlan = (() => {
             <div class="mp-h"><h3 id="mpPlanH">${viaje ? 'Itinerario' : 'El plan, paso a paso'}</h3></div>
             <div data-mp-out="itinsum"></div>
             <div class="mp-list" data-mp-in="itin">${ins.itin(g)}</div>
-            <form class="mp-add i" data-form="itin" novalidate>
+            <form class="mp-add mp-add-i" data-form="itin" novalidate>
               <input class="mp-in" name="d" maxlength="24" placeholder="Día 1 o 12 feb" aria-label="Día o fecha del paso nuevo" autocomplete="off">
               <input class="mp-in" name="n" maxlength="100" placeholder="¿Qué van a hacer?" aria-label="Paso nuevo" autocomplete="off">
               <button class="btn pri" type="submit">${ic('plus')}Agregar</button></form>
@@ -692,5 +692,5 @@ const MetaPlan = (() => {
     }, ms(240));
   }
 
-  return {open, create, isOpen: () => !!ov && !ov.hidden && !closing};
+  return {open, create, isOpen: () => !!ov && !ov.hidden && !closing, coverSrc: g => g && g.plan && g.plan.cover ? src(g.plan.cover) : ''};
 })();

@@ -227,17 +227,25 @@ const Planes = (() => {
         <div class="pl-form-r"><button type="button" class="btn ghost" data-pl-ecancel>Cancelar</button><button type="submit" class="btn acc">${ic('ok')}Guardar cambios</button></div></form>
     </article>`;
   }
+  // v2.0 · Camino de piedras: cada paso es una piedra; el perrito del responsable camina hasta el paso que sigue
+  function stonesHTML(p) {
+    const st = stepsOf(p); if (!st.length) return '';
+    const j = st.findIndex(s => !s.done), w = ownerOf(p.w), n = st.length, at = j < 0 ? n - 1 : j;
+    return `<div class="pl-path${j < 0 ? ' fin' : ''}" style="--n:${n}" aria-hidden="true"><span class="pl-path-line"><i style="transform:scaleX(${n > 1 ? at / (n - 1) : 1})"></i></span>
+      ${st.map((s, k) => `<span class="pl-stone${s.done ? ' on' : ''}${k === j ? ' now' : ''}" style="--k:${k}" title="${esc(s.n)}">${s.done ? ic('ok') : k + 1}${k === at ? `<span class="pl-walker">${heads(w, 26)}</span>` : ''}</span>`).join('')}</div>`;
+  }
   function projHTML(p, i) {
     if (editId === p.id) return editHTML(p, i);
     const st = stepsOf(p), d = doneCount(p), nm = esc(p.n), w = ownerOf(p.w), k = S.projs.indexOf(p);
     const open = openSteps.has(p.id) || !!(stepEdit && stepEdit.id === p.id), due = dueInfo(p.due, isoOf(new Date()), p.done);
     const prize = p.done ? `<span class="pill ok">${ic('ok')}${rewardText(w)}</span>` : `<span class="pill gd">${ic('star')}${w === 'A' ? `+${PTS / 2} a cada uno` : `+${PTS} al terminar`}</span>`;
     const why = p.why ? `<p class="pl-why"><b>Para qué:</b> ${esc(p.why)}</p>` : p.done ? '' : `<button type="button" class="pl-link" data-pl-edit="why">${PEN}<span>Escriban para qué lo hacen</span></button>`;
-    return `<article class="glass pl-proj${p.done ? ' is-done' : ''}${winId === p.id ? ' pl-win' : ''}" style="--i:${i}" data-pl-proj="${esc(p.id)}" aria-label="Proyecto: ${nm}">
+    return `<article class="glass pl-proj pl-own-${w}${p.done ? ' is-done' : ''}${winId === p.id ? ' pl-win' : ''}" style="--i:${i}" data-pl-proj="${esc(p.id)}" aria-label="Proyecto: ${nm}">
       <div class="pl-proj-h">${tile(p.done ? 'trophy' : p.i && p.i !== 'target' ? esc(p.i) : 'target', p.done ? 'gd' : 'a1', 'pl-proj-tile')}
         <div class="pl-proj-tx"><h3>${nm}</h3>${why}
           <div class="pl-proj-meta"><span class="pl-chip">${heads(w, 22)}<span>${NAME[w]}</span></span>${prize}${due ? `<span class="pill ${due.late ? 'al' : due.soon ? 'gd' : 'c1'}">${ic(due.late ? 'alert' : 'cal')}${due.text}</span>` : ''}</div></div></div>
       ${due && due.late ? `<p class="pl-late">${ic('alert')}<span>La fecha ya pasó. Sin culpa: denle hoy un empujón o pónganle una fecha nueva.</span></p>` : ''}
+      ${stonesHTML(p)}
       ${nextHTML(p)}
       <div class="pl-meter">${barHTML(pctOf(p), p.done ? 'var(--ok)' : 'linear-gradient(90deg,var(--a1),var(--a3))')}<span class="mono" data-pl-count>${d}/${st.length}</span></div>
       ${st.length ? `<button type="button" class="pl-fold" data-pl-steps aria-expanded="${open}" aria-controls="plSt${k}">${ic('arrow')}<span>Todos los pasos</span><b class="mono">${st.length}</b></button>

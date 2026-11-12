@@ -49,10 +49,10 @@ function buildReal(D, ref) {
 const LEGACY_CATS = [['arriendo', 'Arriendo', 'home', 'a1'], ['mercado', 'Mercado', 'cart', 'a2'], ['servicios', 'Servicios', 'bolt', 'gd'], ['transporte', 'Transporte', 'car', 'a3'], ['citas', 'Citas y ocio', 'cup', 'al'], ['casa', 'Casa y aseo', 'spark', 'a2'], ['salud', 'Salud y cuidado', 'pulse', 'al'], ['subs', 'Suscripciones', 'play', 'a3'], ['ahorro', 'Ahorro e inversión', 'trend', 'ok'], ['imprevistos', 'Imprevistos', 'shield', 'mu']].map(([id, n, i, t]) => ({id, n, i, t, b: 0, ...(id === 'ahorro' ? {saving: true} : {})}));
 
 // Estado: arranca con los datos reales y `load()` lo reemplaza por lo guardado
-const S = {...buildReal(DATOS_REALES, now), profile: 'V', last: null, mon: null, hist: [], props: [], projs: [], debts: [], recibos: [], people: {V: null, D: null}, faceId: false, compas: true};
+const S = {...buildReal(DATOS_REALES, now), profile: 'V', last: null, mon: null, hist: [], props: [], projs: [], debts: [], recibos: [], notas: [], diario: [], aprendeDesde: null, aprendeAviso: false, people: {V: null, D: null}, faceId: false, compas: true};
 
 // Guardado: un solo objeto versionado en localStorage (v2 = categorías completas; v1 = anterior, se migra al leer)
-const KEY = 'hogar:v1', SCHEMA = 2, LISTS = ['pays', 'moves', 'goals', 'tasks', 'badges', 'notifs', 'props', 'projs', 'debts', 'recibos'];
+const KEY = 'hogar:v1', SCHEMA = 2, LISTS = ['pays', 'moves', 'goals', 'tasks', 'badges', 'notifs', 'props', 'projs', 'debts', 'recibos', 'notas', 'diario'];
 // Texto libre escrito por ellos (propuestas): siempre escapado antes de pintarlo
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 const PROP_PTS = [10, 15, 20];
@@ -143,13 +143,21 @@ function sanitize(raw) {
   out.compas = d.compas !== false;
   // Proyectos de la casa: pasos con casilla; `w` = V, D o A (ambos)
   out.projs = objs(d.projs).filter(p => typeof p.id === 'string' && typeof p.n === 'string' && p.n.trim()).map(p => ({id: p.id, n: p.n.trim().slice(0, 60), i: str(p.i, 'target'), w: ['V', 'D', 'A'].includes(p.w) ? p.w : 'A', due: str(p.due, ''), why: str(p.why, '').trim().slice(0, 120), done: !!p.done, steps: objs(p.steps).filter(s => typeof s.n === 'string' && s.n.trim()).map(s => ({n: s.n.trim().slice(0, 80), done: !!s.done})).slice(0, 20)}));
+  // v2.0 · Apuntes (chat) y foto diaria de Rumbo aprende
+  const NOTA_K = ['tarea', 'gasto', 'idea', 'plan', 'meta', 'ajuste', 'pregunta', 'nota', 'respuesta'], ATT_T = ['img', 'audio', 'video', 'file'];
+  out.notas = objs(d.notas).filter(n => typeof n.id === 'string' && typeof n.t === 'string').map(n => ({id: n.id.slice(0, 40), t: n.t.slice(0, 1000), k: NOTA_K.includes(n.k) ? n.k : 'nota', at: str(n.at, ''), by: n.by === 'D' ? 'D' : n.by === 'bot' ? 'bot' : 'V',
+    att: objs(n.att).filter(a => REC_RE.test(a.id)).map(a => ({id: a.id, tipo: ATT_T.includes(a.tipo) ? a.tipo : 'file', nombre: str(a.nombre, 'archivo').slice(0, 80), size: Math.max(0, int(a.size)), dur: Math.max(0, int(a.dur)), nube: a.nube === true})).slice(0, 8),
+    ...(isObj(n.conv) && typeof n.conv.tipo === 'string' ? {conv: {tipo: n.conv.tipo.slice(0, 12), id: str(n.conv.id, '').slice(0, 40)}} : {}), hecho: !!n.hecho, fav: !!n.fav})).slice(-400);
+  out.diario = objs(d.diario).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.f)).map(x => ({f: x.f, out: int(x.out), sv: int(x.sv), pend: int(x.pend), td: int(x.td), tt: int(x.tt), notas: int(x.notas), pV: int(x.pV), pD: int(x.pD), racha: int(x.racha)})).slice(-400);
+  out.aprendeDesde = /^\d{4}-\d{2}-\d{2}$/.test(d.aprendeDesde) ? d.aprendeDesde : null;
+  out.aprendeAviso = d.aprendeAviso === true;
   // Perfil de cada uno (gustos y contexto): null hasta que lo creen
   const pp = isObj(d.people) ? d.people : {};
   out.people = {V: sanPerson(pp.V), D: sanPerson(pp.D)};
   return out;
 }
 function save(local) {
-  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, aprendeDesde: S.aprendeDesde, aprendeAviso: S.aprendeAviso === true, ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
   // v1.4: también a la nube (si está activa); `local` = cambio que vino de la nube, no se reenvía
   if (!local && typeof Nube === 'object') Nube.push();
 }
@@ -226,7 +234,7 @@ function runAuto(st, day, mk) {
   st.notifs.unshift(notif);
   return due;
 }
-{ const rolled = rollMonth(S, monthKey(now)); syncDebts(S); const auto = runAuto(S, today, monthKey(now)).length; if (rolled || auto) save(); }
+{ const rolled = rollMonth(S, monthKey(now)); syncDebts(S); const auto = runAuto(S, today, monthKey(now)).length; const ap = typeof Aprende === 'object' ? Aprende.diario(S, now) : {}; if (rolled || auto || ap.nuevo) save(); }
 
 // Logros: se calculan desde los datos. Al cargar se ponen al día sin avisar; después, cada acción avisa los nuevos.
 S.badges = Momentos.badgesFrom(S.badges, S).list;
@@ -280,7 +288,9 @@ function goalPace(g, monthsLeft) {
   if (g.m) { const n = Math.ceil(falta / g.m); return `Aporte <b class="mono" style="color:var(--fg)">${fmt(g.m)}</b> al mes · ${falta ? `unos ${n} ${n === 1 ? 'mes' : 'meses'}` : 'meta completa'}`; }
   return 'Sin fecha ni aporte definido';
 }
-const goalCard = (g, i, big) => {
+// v2.0: la tarjeta de meta la dibuja escenas.js (paisaje vivo; toda la portada abre la meta y su plan)
+const goalCard = (g, i, big) => typeof Escenas === 'object' ? Escenas.goalCard(g, i, big) : goalCardV1(g, i, big);
+const goalCardV1 = (g, i, big) => {
   const pct = g.open ? 0 : g.s / g.t, m = g.by ? monthsTo(g.by) : 1, add = g.m && g.m !== 100000 ? g.m : (big ? 500000 : 0);
   return `<div class="glass goal" style="--i:${i}">
     <div class="goal-top">${ring(pct, big ? 84 : 70, 7, g.c[0], g.c[1], 'gr' + g.id + (big ? 'b' : ''), ic(g.i))}
@@ -305,6 +315,7 @@ const views = {
     const show = [...pending.slice(0, 3), ...S.pays.filter(p => p.paid).slice(0, 1)];
     $('#wm').innerHTML = `${Math.round(pct * 100)}%<small>{ rumbo: true }</small>`;
     return `${Voces.helloHTML()}
+    ${typeof Escenas === 'object' ? Escenas.hoy() : ''}
     <div class="grid">
       <section class="glass hero s8" style="--i:1"><span class="code snippet">const mes = "${monthName}";</span>
         <div class="hero-l"><div class="eyebrow">Disponible este mes</div>
@@ -323,8 +334,9 @@ const views = {
       </div>
       <section class="glass s6" style="--i:4"><div class="card-h"><h2>${ic('repeat')}Próximos pagos</h2><span class="card-hr"><span class="pill al">${pending.length} pendientes</span><button class="iconbtn sm" data-act="cuentas" data-id="pagos" aria-label="Editar pagos, deudas y topes" title="Editar pagos, deudas y topes">${ic('edit')}</button></span></div><div class="list">${show.length ? show.map(payRow).join('') : empty('repeat', 'Aún no hay pagos', 'Cuando agreguen pagos recurrentes aparecerán aquí.')}</div></section>
       <section class="glass s6" style="--i:5"><div class="card-h"><h2>${ic('check')}${homeT.hoy ? 'Hoy en casa' : 'Por hacer en casa'}</h2><span class="pill c1">${homeT.list.filter(t => t.done).length}/${homeT.list.length} hechas</span></div><div class="list">${homeT.list.length ? homeT.list.map(taskRow).join('') : empty('check', 'Nada para hoy', 'Sin tareas por ahora, ¡disfruten la casa!')}</div></section>
-      <section class="s12"><div class="card-h rv" style="--i:6;margin:8px 4px 12px"><h2>${ic('target')}Metas de ahorro</h2><a class="pill c1" href="#metas">Ver todas ${ic('arrow')}</a></div>
-        ${S.goals.length ? `<div class="goals">${S.goals.map((g, i) => goalCard(g, i + 7)).join('')}</div>` : `<div class="glass">${empty('target', 'Aún no tienen metas', 'Su primera meta de ahorro aparecerá aquí.')}</div>`}</section>
+      <section class="s12"><div class="card-h rv" style="--i:6;margin:8px 4px 12px"><h2>${ic('target')}Sus metas</h2><a class="pill c1" href="#tareas">Ver todas ${ic('arrow')}</a></div>
+        ${S.goals.length ? `<div class="goals gv-row-list">${[...S.goals].sort((a, b) => (a.by ? a.by.getTime() : 9e15) - (b.by ? b.by.getTime() : 9e15)).map((g, i) => goalCard(g, i + 7)).join('')}</div>` : `<div class="glass">${empty('target', 'Aún no tienen metas', 'Su primera meta de ahorro aparecerá aquí.')}</div>`}</section>
+      <div class="s12">${typeof Escenas === 'object' ? Escenas.notaRapida() : ''}</div>
     </div>`;
   },
   finanzas() {
@@ -338,6 +350,7 @@ const views = {
     return `<div class="view-head rv"><div class="eyebrow">// ${S.goals.length} metas activas · ${fmt(tot)} ahorrados</div><h1>Lo que <span class="hl">vamos a lograr</span></h1></div>
     ${S.goals.length ? `<div class="goals" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))">${S.goals.map((g, i) => goalCard(g, i + 1, true)).join('')}</div>` : `<div class="glass">${empty('target', 'Aún no tienen metas', 'Cuando creen una meta de ahorro la verán aquí.')}</div>`}`;
   },
+  apuntes() { return typeof Apuntes === 'object' ? Apuntes.html() : ''; },
   tareas() {
     $('#wm').innerHTML = '';
     return `<div class="view-head rv"><div class="eyebrow">// lo que estamos construyendo</div><h1>Tareas, metas y <span class="hl">proyectos</span></h1></div>
@@ -376,7 +389,8 @@ function render(animate) {
   catch (e) { console.error('Rumbo:', e); view.innerHTML = `<div class="glass">${empty('info', 'Algo se enredó en esta pantalla', 'Sus datos siguen guardados. Prueben otra pestaña o recarguen la página.')}</div>`; }
   if (animate) { view.classList.add('enter'); clearTimeout(render.t); render.t = setTimeout(() => view.classList.remove('enter'), 1600); countUp(); }
   try { Voces.afterRender(); Avatares.afterRender(view); } catch (e) { console.error('Rumbo:', e); }
-  try { if (current === 'finanzas') Graficas.after(view); else if (current === 'perfil') Perfil.after(view); else if (current === 'tareas') Planes.after(view); } catch (e) { console.error('Rumbo:', e); }
+  try { if (current === 'finanzas') Graficas.after(view); else if (current === 'perfil') Perfil.after(view); else if (current === 'tareas') Planes.after(view); else if (current === 'apuntes') Apuntes.after(view); } catch (e) { console.error('Rumbo:', e); }
+  try { if (typeof Apuntes === 'object') Apuntes.visible(current === 'apuntes' && !gateOpen); } catch (e) { console.error('Rumbo:', e); }
   if (typeof setupScroll === 'function') setupScroll();
 }
 async function route(first) {
@@ -385,7 +399,7 @@ async function route(first) {
   markTab(next);
   if (next === 'perfil' && current !== 'perfil') perfilTab = null;
   document.body.dataset.mod = next;
-  { const ord = ['inicio', 'finanzas', 'tareas', 'perfil'], i0 = ord.indexOf(TAB_OF[current] || current), i1 = ord.indexOf(TAB_OF[next] || next); view.dataset.dir = i1 < i0 ? 'b' : 'f'; }
+  { const ord = ['inicio', 'finanzas', 'apuntes', 'tareas', 'perfil'], i0 = ord.indexOf(TAB_OF[current] || current), i1 = ord.indexOf(TAB_OF[next] || next); view.dataset.dir = i1 < i0 ? 'b' : 'f'; }
   if (current && !first && !reduce) { view.classList.add('view-out'); await sleep(250); view.classList.remove('view-out'); }
   current = next; render(true); window.scrollTo(0, 0); moveInd();
   if (!gateOpen) compa('onRoute', next, view.dataset.dir || 'f');
@@ -514,7 +528,8 @@ function doAct(act, id, el, a) {
   if (act === 'pay') {
     // v1.2: el botón Pagar abre el flujo de pago (ir a la entidad, comprobante y monto real)
     if (typeof Cuentas !== 'undefined' && Cuentas.pay) Cuentas.pay(id, at); else markPaid(id, {at});
-  } else if (act === 'cuentas') { if (typeof Cuentas !== 'undefined') Cuentas.open(id || 'pagos'); }
+  } else if (act === 'go') { location.hash = '#' + (id || 'inicio'); }
+  else if (act === 'cuentas') { if (typeof Cuentas !== 'undefined') Cuentas.open(id || 'pagos'); }
   else if (act === 'recibo') { if (typeof Cuentas !== 'undefined') Cuentas.verRecibo(id); }
   else if (act === 'soporte') { if (typeof Cuentas !== 'undefined') Cuentas.soporte(id); }
   else if (act === 'task') {
@@ -567,6 +582,13 @@ view.addEventListener('click', e => {
   b.parentElement.querySelectorAll(`[${attr}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
 });
 view.addEventListener('submit', e => {
+  // v2.0: nota rápida de Inicio → Apuntes
+  if (e.target.id === 'hoyNota') {
+    e.preventDefault(); const inp = $('#hoyNotaTx'), t = inp.value.trim(); if (!t || typeof Apuntes !== 'object') { inp.focus(); return; }
+    inp.value = ''; Apuntes.enviar(t); const k = Aprende.clasificar(t, {cats: S.cats, hoy: new Date()}).tipo;
+    island({icon: 'chat', color: 'a1', title: 'Guardado en Apuntes', sub: k === 'pregunta' ? 'Coral y Oreo ya respondieron' : `Lo entendí como ${({tarea: 'tarea', gasto: 'gasto', idea: 'idea', plan: 'plan', meta: 'meta', ajuste: 'ajuste', nota: 'nota'})[k] || 'nota'}`, action: 'Ver', dur: 4200, onAction: () => { setTimeout(() => { location.hash = '#apuntes'; }, 50); }});
+    return;
+  }
   if (e.target.id !== 'propForm') return;
   e.preventDefault();
   const f = e.target, n = f.querySelector('#propTx').value.trim().replace(/\s+/g, ' '), err = f.querySelector('#propErr');
@@ -741,6 +763,7 @@ function settingsStep(confirm, keep) {
       ${setGroup('Seguridad', setSwitch('setFace', 'face', 'Face ID al entrar', S.faceId === true ? 'Se pide al entrar y al volver a la app' : 'Apagado: entran eligiendo su perfil', S.faceId === true) + setRow('setLock', 'lock', 'mu', 'Bloquear ahora', 'Vuelve a la pantalla de entrada'))}
       ${setGroup('La casa', setRow('setCuentas', 'edit', 'a2', 'Pagos, deudas y topes', `${S.pays.length} pagos fijos · ${S.debts.length} ${S.debts.length === 1 ? 'deuda' : 'deudas'} · comprobantes`) + setRow('setEdit', 'wallet', 'a1', 'Ingreso y presupuesto', `Ingreso ${fmt(S.income)} · ${S.cats.length} categorías`))}
       ${setGroup('Coral y Oreo', setSwitch('setCompas', 'heart', 'Coral y Oreo en pantalla', S.compas !== false ? 'Los acompañan, juegan y guían entre páginas' : 'Apagado: solo salen a celebrar', S.compas !== false) + setRow('setTips', 'bulb', 'gd', 'Consejos del día', 'Reflexión y consejitos de sus asistentes') + setRow('setAbout', 'info', 'a2', 'Acerca de Rumbo', 'La marca, Coral y Oreo'))}
+      ${setGroup('Rumbo aprende', setRow('setAprende', 'spark', 'gd', 'Lo que Rumbo aprendió', `${(S.diario || []).length} ${(S.diario || []).length === 1 ? 'día' : 'días'} de datos · se actualiza cada día`))}
       ${setGroup('Nube y copias', (typeof Nube === 'object' && Nube.activo() && Nube.perfil() ? setRow('setNube', 'lock', 'a2', 'Cerrar sesión', Nube.estado()) : `<div class="set-row static">${tile('info', 'mu')}<span class="set-tx"><b>Nube</b><small>${typeof Nube === 'object' ? Nube.estado() : 'No disponible'}</small></span></div>`) + setRow('setExport', 'doc', 'a1', 'Descargar copia de seguridad', 'Datos, comprobantes y fotos en un archivo .json') + setRow('setImport', 'undo', 'gd', 'Restaurar una copia', 'Reemplaza los datos con los de un archivo .json'))}
       ${setGroup('Datos', setRow('setClear', 'undo', 'al', 'Restablecer a los datos iniciales', 'Si algo se desordenó; pide confirmación'))}
       <p class="set-foot muted">Rumbo 1.8 · ${typeof Nube === 'object' && Nube.activo() ? 'sus datos viven en la nube de la casa' : 'sus datos viven solo en este navegador'}</p>`;
@@ -760,6 +783,29 @@ function importStep() {
     } catch (e) { island({icon: 'alert', color: 'alert', title: 'No se pudo leer', sub: e.message, dur: 4200}); }
   };
   inp.click();
+}
+// v2.0 · Panel de Rumbo aprende: qué ha visto, cuánto lleva y el paquete para el desarrollador
+function aprendeStep() {
+  const dias = (S.diario || []).length, pct = Math.min(1, dias / 30), ref = new Date(), P = Aprende.pure;
+  const r = P.ritmo(S, ref.getDate(), daysInMonth), top = Object.values(r).filter(x => x.g > 0).sort((a, b) => b.g - a.g)[0];
+  const tk = P.tareas(S), mt = P.metas(S, ref).filter(x => x.atrasada), raro = P.raros(S).length, notas = (S.notas || []).filter(n => n.by !== 'bot');
+  const k = notas.reduce((o, n) => { o[n.k] = (o[n.k] || 0) + 1; return o; }, {});
+  const li = (i, t) => `<li>${ic(i)}<span>${t}</span></li>`;
+  $('#setTitle').textContent = 'Rumbo aprende';
+  setBody.innerHTML = `<div class="apr">
+    <p class="muted" style="margin:0 0 14px">Todo se calcula en este aparato con sus propios datos: cuánto gastan y a qué ritmo, qué se repite, cómo van las metas y cómo se reparten las tareas. Cada día guarda una foto de los números para ver tendencias.</p>
+    <div class="apr-prog"><div class="apr-bar"><i style="transform:scaleX(${pct})"></i></div><span><b>${dias}</b> de 30 días del primer mes${dias >= 30 ? ' · listo para afinar la app' : ''}</span></div>
+    <ul class="apr-list">
+      ${li('wallet', top ? `Donde más se va la plata este mes: <b>${esc(top.n)}</b> (${fmt(top.g)}).` : 'Aún no hay gastos este mes para comparar.')}
+      ${li('alert', Object.values(r).some(x => x.riesgo) ? `A este ritmo se pasarían del tope en: <b>${Object.values(r).filter(x => x.riesgo).map(x => esc(x.n)).join(', ')}</b>.` : 'Ninguna categoría va camino a pasarse del tope.')}
+      ${li('spark', raro ? `${raro} ${raro === 1 ? 'gasto salió' : 'gastos salieron'} de lo normal.` : 'Ningún gasto fuera de lo normal.')}
+      ${li('target', mt.length ? `Metas que necesitan más aporte: <b>${mt.map(x => esc(x.n)).join(', ')}</b>.` : 'Las metas con fecha van a buen ritmo.')}
+      ${li('check', `Tareas hechas: Vale ${tk[0].hechas}/${tk[0].total} · David ${tk[1].hechas}/${tk[1].total}.`)}
+      ${li('chat', notas.length ? `En Apuntes: ${Object.entries(k).map(([t, n]) => n + ' ' + t + (n === 1 ? '' : 's')).join(' · ')}.` : 'Aún no han escrito en Apuntes.')}
+    </ul>
+    <p class="muted" style="font-size:13px;margin:14px 0">Al cumplir el primer mes les aviso para que el desarrollador revise estos números y actualice la app en Firebase y GitHub. El paquete lleva solo totales: ni el texto de sus apuntes ni sus archivos.</p>
+    <div class="acts"><button class="btn ghost" id="setCancel">Volver</button><button class="btn pri" id="aprPaq">${ic('doc')}Descargar paquete para el desarrollador</button></div></div>`;
+  setTimeout(() => $('#aprPaq').focus(), 30);
 }
 function aboutStep() {
   setBody.innerHTML = `<div class="about"><div class="about-lk"><span class="mk big">${Marca.mark()}</span>${Marca.word()}</div><p class="tagl">de a dos pa' la casa</p>
@@ -792,6 +838,8 @@ setBody.addEventListener('click', e => {
   const pb = e.target.closest('[data-prof]');
   if (pb) { Voces.setProfile(pb.dataset.prof); settingsStep(false); return; }
   if (id === 'setEdit') budgetForm();
+  else if (id === 'setAprende') aprendeStep();
+  else if (id === 'aprPaq') { const b = new Blob([JSON.stringify(Aprende.paquete(S), null, 1)], {type: 'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `rumbo-aprende-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000); island({icon: 'doc', color: 'ok', title: 'Paquete descargado', sub: 'Compártanlo con el desarrollador', dur: 3200}); }
   else if (id === 'setExport') { if (typeof Nube === 'object') Nube.exportar(); }
   else if (id === 'setImport') importStep();
   else if (id === 'impOk') { const c = importStep.copia; if (!c) return; importStep.copia = null; Nube.importar(c).then(() => { renderChips(); syncTag(); closeSettings(); render(true); island({icon: 'ok', color: 'ok', title: 'Copia restaurada', sub: 'Así quedó todo como en la copia', dur: 3200}); }).catch(e => island({icon: 'alert', color: 'alert', title: 'No se pudo restaurar', sub: e.message, dur: 4200})); }
@@ -929,6 +977,8 @@ async function enterApp() {
     au.seen = true; save();
     Voces.afterLogin({title: autoTitle(au.names.length), detail: listNames(au.names)}, ctx);
   } else Voces.afterLogin(null, ctx);
+  // v2.0 · Primer mes de datos: avisa una vez que ya hay base para afinar la app con el desarrollador
+  try { const ap = Aprende.diario(S, new Date()); if (ap.mesListo) { S.aprendeAviso = true; save(); setTimeout(() => island({icon: 'spark', color: 'gold', title: 'Ya hay un mes de datos', sub: 'Rumbo aprendió de su casa: pídanle al desarrollador que actualice Firebase y GitHub', action: 'Ver', dur: 9000, onAction: () => { setTimeout(() => { openSettings(); aprendeStep(); }, 60); }}), T(9000)); } } catch (e) { console.error('Rumbo · Aprende:', e); }
 };
 
 addEventListener('hashchange', () => route(false));

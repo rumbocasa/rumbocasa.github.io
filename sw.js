@@ -1,12 +1,12 @@
 /* Rumbo · Service worker (v1.3). Solo funciona cuando la app está publicada (https), no con file://.
    Guarda la app para abrirla rápido y sin señal. Estrategia: muestra lo guardado y, por detrás, trae la versión nueva
    (la ven en la siguiente apertura). Al publicar cambios grandes, subir VERSION para limpiar lo viejo. */
-const VERSION = 'rumbo-202611121529';
+const VERSION = 'rumbo-202611121620';
 const SHELL = [
   './', './index.html', './favicon.svg', './manifest.webmanifest',
-  'css-estilos.css', 'css-graficas.css', 'css-perfil.css', 'css-planes.css', 'css-metaplan.css', 'css-compas.css', 'css-cuentas.css', 'css-nube.css',
+  'css-estilos.css', 'css-graficas.css', 'css-perfil.css', 'css-planes.css', 'css-metaplan.css', 'css-compas.css', 'css-cuentas.css', 'css-nube.css', 'css-apuntes.css', 'css-escenas.css',
   'js-datos-reales.js', 'js-frases.js', 'js-frases-momentos.js', 'js-mascotas.js', 'js-marca.js', 'js-momentos.js', 'js-avatares.js',
-  'js-voces.js', 'js-graficas.js', 'js-perfil.js', 'js-planes.js', 'js-metaplan.js', 'js-compas.js', 'js-cuentas.js', 'js-nube-config.js', 'js-nube.js', 'js-app.js',
+  'js-voces.js', 'js-graficas.js', 'js-perfil.js', 'js-planes.js', 'js-metaplan.js', 'js-compas.js', 'js-aprende.js', 'js-cuentas.js', 'js-apuntes.js', 'js-escenas.js', 'js-nube-config.js', 'js-nube.js', 'js-app.js',
   'iconos-icono-192.png', 'iconos-icono-512.png', 'iconos-apple-touch-icon.png'
 ];
 self.addEventListener('install', e => {

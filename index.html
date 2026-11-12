@@ -26,6 +26,8 @@
 <link rel="stylesheet" href="css-compas.css">
 <link rel="stylesheet" href="css-cuentas.css">
 <link rel="stylesheet" href="css-nube.css">
+<link rel="stylesheet" href="css-apuntes.css">
+<link rel="stylesheet" href="css-escenas.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -79,6 +81,11 @@
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12h12M11 6l6 6-6 6"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.5-2h5.6l1.5 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.5"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6.5" width="12.5" height="11" rx="2"/><path d="m15.5 10.5 5-3v9l-5-3"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12.5a7.5 7.5 0 0 1-11.2 6.5L4 20l1.2-4.4A7.5 7.5 0 1 1 20 12.5z"/><path d="M8.5 11h7M8.5 14h4.5"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></symbol>
   <symbol id="i-clip" viewBox="0 0 24 24"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.1-8.1a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
@@ -107,6 +114,7 @@
   <a class="tab" href="#inicio" data-v="inicio"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span>Inicio</span></a>
   <a class="tab" href="#finanzas" data-v="finanzas"><svg class="i" aria-hidden="true"><use href="#i-wallet"/></svg><span>Finanzas</span></a>
   <button class="fab" id="fab" data-tip="Agregar gasto o tarea" title="Agregar gasto o tarea" aria-label="Agregar gasto o tarea"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></button>
+  <a class="tab" href="#apuntes" data-v="apuntes"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span>Apuntes</span></a>
   <a class="tab" href="#tareas" data-v="tareas"><svg class="i" aria-hidden="true"><use href="#i-target"/></svg><span>Planes</span></a>
   <a class="tab" href="#perfil" data-v="perfil"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span>Perfil</span></a>
 </nav>
@@ -204,7 +212,10 @@
 <script src="js-planes.js"></script>
 <script src="js-metaplan.js"></script>
 <script src="js-compas.js"></script>
+<script src="js-aprende.js"></script>
 <script src="js-cuentas.js"></script>
+<script src="js-apuntes.js"></script>
+<script src="js-escenas.js"></script>
 <script src="js-nube-config.js"></script>
 <script src="js-nube.js"></script>
 <script src="js-app.js"></script>

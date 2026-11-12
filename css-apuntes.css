@@ -1,0 +1,126 @@
+/* Rumbo · Apuntes (v2.0): chat de la casa. Usa los tokens de estilos.css. */
+.ap{padding-bottom:12px}
+body.ap-on .app{padding-bottom:calc(210px + env(safe-area-inset-bottom,0px))}
+.ap .view-head{text-align:left;margin-bottom:12px}
+.ap-tools{position:sticky;top:calc(74px + env(safe-area-inset-top,0px));z-index:5;display:grid;gap:8px;margin:0 -16px 14px;padding:10px 16px 12px;background:var(--bg);box-shadow:0 10px 16px -12px rgba(0,0,0,.35);border-radius:0 0 22px 22px}
+.ap-search{display:flex;align-items:center;gap:8px;padding:0 14px;min-height:46px;border-radius:999px;background:var(--glass-strong);border:1px solid var(--border)}
+.ap-search .i{color:var(--muted);width:18px;height:18px}
+.ap-search input{flex:1;min-width:0;border:0;background:none;color:var(--fg);font:500 16px var(--ui);outline:none}
+.ap-search:focus-within{outline:2px solid var(--a1);outline-offset:2px}
+.ap-filtros{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.ap-filtros::-webkit-scrollbar{display:none}
+.ap-filtros button{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:999px;font-weight:700;font-size:13.5px;color:var(--fg);background:color-mix(in srgb,var(--fg) 7%,transparent);border:1px solid var(--line);transition:background .25s,transform .25s}
+.ap-filtros button b{font-size:11.5px;min-width:20px;padding:1px 6px;border-radius:99px;background:color-mix(in srgb,var(--fg) 12%,transparent)}
+.ap-filtros button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:transparent}
+.ap-filtros button[aria-pressed="true"] b{background:color-mix(in srgb,var(--bg) 25%,transparent)}
+
+/* Lista y burbujas */
+.ap-list{display:grid;gap:12px}
+.ap-day{display:flex;justify-content:center;margin:6px 0 2px}
+.ap-day span{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:capitalize;padding:4px 12px;border-radius:99px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.ap-msg{display:flex;align-items:flex-end;gap:8px;max-width:min(560px,92%);animation:apIn .45s cubic-bezier(.2,1.3,.4,1) both}
+.ap-msg.mine{flex-direction:row-reverse;margin-left:auto}
+@keyframes apIn{from{opacity:0;transform:translateY(12px) scale(.97)}}
+.ap-av{flex:none;width:30px;height:30px;display:grid;place-items:center}
+.ap-bub{position:relative;display:grid;gap:8px;min-width:0;padding:12px 14px 8px;border-radius:22px;background:var(--glass-strong);border:1px solid var(--border);box-shadow:0 6px 18px -10px rgba(0,0,0,.35)}
+.ap-msg.mine .ap-bub{border-bottom-right-radius:8px;background:color-mix(in srgb,var(--a3) 14%,var(--glass-strong));border-color:color-mix(in srgb,var(--a3) 40%,transparent)}
+.ap-msg.mine.d .ap-bub{background:color-mix(in srgb,var(--a2) 16%,var(--glass-strong));border-color:color-mix(in srgb,var(--a2) 42%,transparent)}
+.ap-msg.theirs .ap-bub,.ap-msg.bot .ap-bub{border-bottom-left-radius:8px}
+.ap-msg.bot .ap-bub{background:color-mix(in srgb,var(--a1) 12%,var(--glass-strong));border-color:color-mix(in srgb,var(--a1) 40%,transparent)}
+.ap-kind{display:inline-flex;align-items:center;gap:5px;justify-self:start;font-size:12px;font-weight:800;color:var(--kc,var(--muted));letter-spacing:.01em}
+.ap-kind .i{width:14px;height:14px}
+.ap-kind.bot{color:var(--a1);text-transform:uppercase;letter-spacing:.1em;font-size:11px}
+.ap-tx{margin:0;font-size:15.5px;line-height:1.45;color:var(--fg);overflow-wrap:anywhere}
+.ap-acts{display:flex;flex-wrap:wrap;gap:6px}
+.ap-act{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:999px;font-size:13.5px;font-weight:700;color:var(--fg);background:color-mix(in srgb,var(--fg) 8%,transparent);border:1.5px solid color-mix(in srgb,var(--fg) 16%,transparent);transition:transform .25s cubic-bezier(.2,1.6,.4,1),background .2s}
+.ap-act:first-child{background:var(--fg);color:var(--bg);border-color:transparent}
+.ap-act:hover{transform:translateY(-2px)}
+.ap-act:active{transform:scale(.95)}
+.ap-act .i{width:16px;height:16px}
+.ap-done{display:inline-flex;align-items:center;gap:6px;justify-self:start;font-size:13px;font-weight:800;color:var(--ok);animation:apIn .4s both}
+.ap-done .i{width:16px;height:16px}
+.ap-foot{display:flex;align-items:center;justify-content:flex-end;gap:2px;margin:0 -6px -2px 0}
+.ap-foot time{margin-right:auto;font-size:12px;color:var(--muted)}
+.ap-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;color:var(--muted);transition:background .2s,color .2s,transform .25s}
+.ap-ico:hover{background:color-mix(in srgb,var(--fg) 8%,transparent);color:var(--fg)}
+.ap-ico .i{width:18px;height:18px}
+.ap-ico.on{color:var(--gold)}
+.ap-ico.on .i{fill:currentColor}
+.ap-sel select{appearance:none;-webkit-appearance:none;min-height:30px;padding:0 10px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--muted);font:700 12px var(--ui);cursor:pointer}
+.ap-sel select:focus-visible{outline:2px solid var(--a1)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* Adjuntos */
+.ap-atts{display:grid;gap:6px}
+.ap-att.ap-img{display:block;padding:0;border-radius:16px;overflow:hidden;max-width:280px;background:var(--track)}
+.ap-att.ap-img img{display:block;width:100%;max-height:320px;object-fit:cover}
+.ap-att.ap-audio{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:16px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.ap-att.ap-audio audio{height:36px;max-width:220px}
+.ap-att.ap-audio small,.ap-att small{font-size:12px;color:var(--muted)}
+.ap-att.ap-video video{display:block;width:100%;max-width:300px;max-height:340px;border-radius:16px;background:#000}
+.ap-att.ap-file{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.ap-att.ap-file span{display:grid;flex:1;min-width:0}
+.ap-att.ap-file b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ap-att.falta{display:flex;align-items:center;gap:8px;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.ap-att .cu-spin{margin:12px}
+
+/* Bienvenida */
+.ap-hello{display:grid;justify-items:center;gap:10px;padding:26px 18px;text-align:center;border-radius:28px;background:var(--glass-strong);border:1px solid var(--border);animation:apIn .6s both}
+.ap-hello-dog{animation:apBob 3.2s ease-in-out infinite}
+@keyframes apBob{50%{transform:translateY(-6px) rotate(-2deg)}}
+.ap-hello h2{margin:0;font-size:22px}
+.ap-hello p{margin:0;max-width:44ch;color:var(--muted);font-size:14.5px;line-height:1.5}
+.ap-ej{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:6px}
+.ap-ej button{min-height:38px;padding:0 13px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--fg) 7%,transparent);border:1px dashed color-mix(in srgb,var(--fg) 26%,transparent)}
+.ap-ej button:hover{background:color-mix(in srgb,var(--fg) 12%,transparent)}
+.ap-empty{text-align:center;color:var(--muted);padding:30px 0}
+
+/* Compositor flotante */
+.ap-comp{position:fixed;left:0;right:0;margin-inline:auto;bottom:calc(98px + env(safe-area-inset-bottom,0px));z-index:19;width:min(640px,calc(100% - 24px));display:grid;gap:6px;animation:apIn .4s both}
+.ap-row,.ap-recbar{position:relative;display:flex;align-items:flex-end;gap:4px;padding:6px;border-radius:28px;background:var(--glass-strong);border:1px solid var(--border);box-shadow:0 16px 40px -12px rgba(0,0,0,.45)}
+.ap-row textarea{flex:1;min-width:0;min-height:44px;max-height:140px;resize:none;border:0;background:none;color:var(--fg);font:500 16px/1.4 var(--ui);padding:11px 6px;outline:none}
+.ap-row textarea::placeholder{color:var(--muted)}
+.ap-row .ap-ico{width:44px;height:44px;color:var(--fg)}
+.ap-row .ap-ico .i{width:22px;height:22px}
+.ap-send{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:50%;color:var(--on-a);background:linear-gradient(180deg,var(--a1),color-mix(in srgb,var(--a1) 70%,var(--a3)));box-shadow:0 3px 0 color-mix(in srgb,var(--a1) 55%,#000);transition:transform .2s cubic-bezier(.2,1.6,.4,1)}
+.ap-send:hover{transform:translateY(-2px)}
+.ap-send:active{transform:translateY(2px);box-shadow:none}
+.ap-send .i{width:22px;height:22px;stroke-width:2.6}
+.ap-menu{position:absolute;left:6px;bottom:calc(100% + 8px);display:grid;min-width:240px;padding:6px;border-radius:20px;background:var(--glass-strong);border:1px solid var(--border);box-shadow:var(--shadow);animation:apIn .25s both}
+.ap-menu button{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-radius:14px;font-weight:700;font-size:14.5px;color:var(--fg);text-align:left}
+.ap-menu button:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.ap-menu .i{color:var(--a1)}
+.ap-pend{display:flex;gap:6px;overflow-x:auto;padding:2px}
+.ap-chip{position:relative;display:flex;align-items:center;gap:6px;flex:none;padding:6px 32px 6px 6px;border-radius:16px;background:var(--glass-strong);border:1px solid var(--border)}
+.ap-chip img{width:40px;height:40px;border-radius:10px;object-fit:cover}
+.ap-chip>.i{width:20px;height:20px;margin:0 4px;color:var(--a1)}
+.ap-chip small{font-size:12.5px;font-weight:700}
+.ap-chip button{position:absolute;right:4px;top:50%;translate:0 -50%;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb,var(--fg) 10%,transparent)}
+.ap-chip button .i{width:14px;height:14px}
+.ap-recbar{align-items:center;padding:6px 6px 6px 18px}
+.ap-dot{width:12px;height:12px;border-radius:50%;background:var(--alert);animation:apPulse 1s ease-in-out infinite}
+@keyframes apPulse{50%{transform:scale(.6);opacity:.5}}
+.ap-recbar b{font-variant-numeric:tabular-nums;min-width:44px}
+.ap-wave{flex:1;display:flex;align-items:center;justify-content:center;gap:3px;height:32px}
+.ap-wave i{width:3px;height:30%;border-radius:2px;background:var(--a1);animation:apWave 1s ease-in-out infinite}
+.ap-wave i:nth-child(odd){animation-delay:-.4s}.ap-wave i:nth-child(3n){animation-delay:-.7s}.ap-wave i:nth-child(4n){animation-delay:-.2s}
+@keyframes apWave{50%{height:100%}}
+
+/* Cámara */
+.ap-cam{position:fixed;inset:0;z-index:90;background:#000;display:grid;animation:apIn .25s both}
+.ap-cam video{width:100%;height:100%;object-fit:cover}
+.ap-cam-top{position:absolute;inset:calc(12px + env(safe-area-inset-top,0px)) 12px auto;display:flex;align-items:center;justify-content:space-between;color:#fff}
+.ap-cam-top .ap-ico{color:#fff;background:rgba(0,0,0,.4)}
+.ap-cam-top b{padding:6px 14px;border-radius:99px;background:rgba(0,0,0,.45);font-size:14px}
+.ap-cam-bot{position:absolute;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center}
+.ap-shutter{width:78px;height:78px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center;background:rgba(255,255,255,.15)}
+.ap-shutter i{display:block;width:58px;height:58px;border-radius:50%;background:#fff;transition:transform .2s,border-radius .2s}
+.ap-shutter.vid i{background:#FF3B30}
+.ap-shutter.rec i{transform:scale(.55);border-radius:10px}
+
+/* Barra lateral de computador: el compositor no tapa el riel */
+@media (min-width:1100px){.ap-comp{bottom:calc(22px + env(safe-area-inset-bottom,0px));left:116px}body.ap-on .app{padding-bottom:140px}.ap-tools{top:96px}}
+@media (max-width:420px){.ap-msg{max-width:100%}.ap-act{font-size:13px;padding:0 11px}.ap-menu{min-width:0;right:6px}}
+@media (prefers-reduced-motion:reduce){.ap-msg,.ap-hello,.ap-hello-dog,.ap-wave i,.ap-dot,.ap-comp{animation:none!important}}
+.ap-up{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.ap-up .cu-spin{width:16px;height:16px;margin:0}

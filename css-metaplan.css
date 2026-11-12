@@ -127,8 +127,8 @@ html.mp-lock,html.mp-lock body{overflow:hidden}
 .mp-up .i{transform:rotate(-90deg)}
 .mp-dn .i{transform:rotate(90deg)}
 .mp-add{display:grid;gap:8px;margin-top:14px;padding-top:16px;border-top:1px solid var(--line)}
-.mp-add.c{grid-template-columns:minmax(0,1fr) minmax(0,150px) auto}
-.mp-add.i{grid-template-columns:minmax(0,130px) minmax(0,1fr) auto}
+.mp-add.mp-add-c{grid-template-columns:minmax(0,1fr) minmax(0,150px) auto}
+.mp-add.mp-add-i{grid-template-columns:minmax(0,130px) minmax(0,1fr) auto}
 .mp-sug{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px}
 .mp-sug:empty{display:none}
 .mp-sug .mp-lbl{margin-right:4px}
@@ -203,8 +203,8 @@ html.mp-lock,html.mp-lock body{overflow:hidden}
   .mp-it .mp-itn{grid-column:2 / -1;grid-row:1}
   .mp-it .mp-itd{grid-column:2;grid-row:2;max-width:150px}
   .mp-it .mp-ita{grid-column:3;grid-row:2}
-  .mp-add.c{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  .mp-add.i{grid-template-columns:minmax(0,104px) minmax(0,1fr)}
+  .mp-add.mp-add-c{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mp-add.mp-add-i{grid-template-columns:minmax(0,104px) minmax(0,1fr)}
   .mp-add .btn{grid-column:1 / -1;justify-content:center}
 }
 @media (max-width:480px){

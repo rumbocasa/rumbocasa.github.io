@@ -487,5 +487,5 @@ const Cuentas = (function () {
       <div class="gx-cta"><button class="btn ghost" data-act="cuentas" data-id="deudas">${ic('edit')}Ver y editar deudas</button></div></section>`;
   }
 
-  return {open, close, pay, soporte, verRecibo, dropRecibo, resumenHTML, archivo: getFile, guardarArchivo, isOpen: () => !!ov && !ov.hidden, pure: {fixUrl, digits}};
+  return {open, close, pay, soporte, verRecibo, dropRecibo, resumenHTML, archivo: getFile, guardarArchivo, borrarArchivo: delFile, isOpen: () => !!ov && !ov.hidden, pure: {fixUrl, digits}};
 })();
