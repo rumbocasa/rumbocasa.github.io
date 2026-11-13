@@ -109,7 +109,7 @@
 /* Adjuntos */
 .cht-atts{display:grid;gap:6px}
 .cht-att.cht-img{display:block;padding:0;border-radius:14px;overflow:hidden;max-width:240px;background:var(--track)}
-.cht-att.cht-img img{display:block;width:100%;max-height:280px;object-fit:cover}
+.cht-att.cht-img img{display:block;width:100%;height:auto;max-height:340px;object-fit:contain;background:color-mix(in srgb,var(--fg) 6%,transparent)}
 .cht-att.cht-audio{display:flex;align-items:center;gap:6px}
 .cht-att.cht-audio audio{height:36px;max-width:210px}
 .cht-att small{font-size:11.5px;color:var(--muted)}
@@ -164,7 +164,7 @@
 
 /* Cámara a pantalla completa */
 .ap-cam{position:fixed;inset:0;z-index:95;background:#000;display:grid;animation:chFade .25s both}
-.ap-cam video{width:100%;height:100%;object-fit:cover}
+.ap-cam video{width:100%;height:100%;object-fit:contain;background:#000}
 .ap-cam-top{position:absolute;inset:calc(12px + env(safe-area-inset-top,0px)) 12px auto;display:flex;align-items:center;justify-content:space-between;color:#fff}
 .ap-cam-top .cht-i{color:#fff;background:rgba(0,0,0,.45)}
 .ap-cam-top b{padding:6px 14px;border-radius:99px;background:rgba(0,0,0,.45);font-size:14px}

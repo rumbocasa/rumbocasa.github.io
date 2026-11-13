@@ -422,3 +422,25 @@ body.pj-hoja-on{overflow:hidden}
 .pj-hoja.proy .pl-proj{margin:0;padding:0;background:none;border:0;box-shadow:none;animation:none;-webkit-backdrop-filter:none;backdrop-filter:none;overflow:visible}
 .pj-hoja.proy .pl-proj-h{padding-right:40px}
 @media (prefers-reduced-motion:reduce){.pj-late{animation:none!important}}
+
+/* ===== v2.9 · Mapa adaptable: vertical en el celular, horizontal a todo el ancho en el computador ===== */
+.pj-mapa{height:var(--vh)}
+.pj-dest,.pj-hoy,.pj-next{left:var(--vx);top:var(--vy)}
+.pj-camino.h{display:none}
+/* Nombres completos en dos líneas (antes se cortaban con «…») */
+.pj-dest-l{max-width:132px;text-align:center}
+.pj-dest-l b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip;line-height:1.15}
+@media (min-width:820px){
+  .pj-mapa{max-width:none;height:470px;border-radius:36px}
+  .pj-camino.v{display:none}.pj-camino.h{display:block}
+  .pj-dest,.pj-hoy,.pj-next{left:var(--hx);top:var(--hy)}
+  .pj-dest-ring{width:92px;height:92px}.pj-dest-in .i{width:36px;height:36px}
+  .pj-dest-l{max-width:170px;padding:6px 12px}.pj-dest-l b{font-size:14px}.pj-dest-l span{font-size:12.5px}
+  .pj-sol{right:auto;left:7%;top:34px;width:110px;height:110px}
+  .pj-montes{height:52%}
+  .pj-hud{max-width:none}
+  .pj-ideas{justify-content:center;flex-wrap:wrap;overflow:visible}
+  .pj-idea{width:120px}
+}
+
+.pj-next{white-space:nowrap}

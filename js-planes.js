@@ -223,6 +223,16 @@ const Planes = (() => {
   // Cielo según la hora de Medellín (amanecer, tarde, noche)
   const cieloDe = h => h >= 5 && h < 10 ? 'am' : h >= 10 && h < 18 ? 'pm' : 'nt';
   // Coordenadas de la ruta: el primer destino abajo, el más lejano arriba. x en %, y en px.
+  // Coordenadas para el computador: el camino va de izquierda a derecha (x e y en %)
+  function rutaH(n) {
+    const pts = Array.from({length: n}, (_, k) => ({x: n > 1 ? 12 + k * (76 / (n - 1)) : 50, y: k % 2 ? 34 : 62}));
+    const start = {x: 4, y: 82}, end = {x: 90, y: 13};
+    const seg = (a, b) => `C${(a.x + b.x) / 2} ${a.y} ${(a.x + b.x) / 2} ${b.y} ${b.x} ${b.y}`;
+    const path = list => list.slice(1).reduce((d, p, i) => d + ' ' + seg(list[i], p), `M${list[0].x} ${list[0].y}`);
+    return {pts, start, end, path};
+  }
+  // style con la posición en las dos orientaciones (el CSS escoge según el ancho)
+  const pos = (v, h) => `--vx:${v.x}%;--vy:${v.y}px;--hx:${h.x}%;--hy:${h.y}%`;
   function ruta(n) {
     const GAP = 150, TOP = 180, BOT = 150, H = TOP + Math.max(0, n - 1) * GAP + BOT;
     const pts = Array.from({length: n}, (_, k) => ({x: k % 2 ? 70 : 30, y: H - BOT - k * GAP + (k % 2 ? 12 : -8)}));
@@ -232,45 +242,48 @@ const Planes = (() => {
     return {H, pts, start, end, path};
   }
   // Un destino: ícono grande con anillo de avance; el nombre corto debajo
-  function destinoHTML(g, p, k, cur) {
+  function destinoHTML(g, p, k, cur, h) {
     const pct = Math.min(1, g.s / g.t), done = g.s >= g.t, ready = listos(g).length, c = Array.isArray(g.c) ? g.c : ['var(--a1)', 'var(--a3)'];
-    return `<button type="button" class="pj-dest${done ? ' done' : ''}${cur ? ' cur' : ''}${ready ? ' ready' : ''}" data-pj-open="${esc(g.id)}" style="left:${p.x}%;top:${p.y}px;--k:${k};--p:${pct};--c1:${c[0]};--c2:${c[1]}" aria-label="${esc(g.n)}: ${Math.round(pct * 100)} %${ready ? ', hay un cofre listo' : ''}. Abrir">
+    return `<button type="button" class="pj-dest${done ? ' done' : ''}${cur ? ' cur' : ''}${ready ? ' ready' : ''}" data-pj-open="${esc(g.id)}" style="${pos(p, h)};--k:${k};--p:${pct};--c1:${c[0]};--c2:${c[1]}" aria-label="${esc(g.n)}: ${Math.round(pct * 100)} %${ready ? ', hay un cofre listo' : ''}. Abrir">
       <span class="pj-dest-ring"><span class="pj-dest-in">${ic(done ? 'trophy' : esc(g.i || 'target'))}</span>${cur ? DUO(28) : ''}${ready ? `<span class="pj-badge" aria-hidden="true">${COFRE(false)}</span>` : ''}</span>
       <span class="pj-dest-l"><b>${esc(g.n)}</b><span class="mono">${done ? 'Llegaron' : Math.round(pct * 100) + ' %'}</span></span>
     </button>`;
   }
   // Escena del mapa (cielo según la hora, nubes, montañas y el camino). `cur` = índice del destino actual (-1 = todos logrados)
   function escenaHTML(n, cur, label, cls, inner, next, extra) {
-    const R = ruta(n), cielo = cieloDe(new Date().getHours());
+    const R = ruta(n), Hz = rutaH(n), cielo = cieloDe(new Date().getHours());
     const todos = [R.start, ...R.pts, R.end], hechos = [R.start, ...R.pts.slice(0, cur < 0 ? n : cur + 1)];
-    return `<section class="pj-mapa ${cls} cielo-${cielo}" style="--i:3;height:${R.H}px" aria-label="${label}">
+    const todosH = [Hz.start, ...Hz.pts, Hz.end], hechosH = [Hz.start, ...Hz.pts.slice(0, cur < 0 ? n : cur + 1)];
+    return `<section class="pj-mapa ${cls} cielo-${cielo}" style="--i:3;--vh:${R.H}px" aria-label="${label}">
       <span class="pj-sol" aria-hidden="true"></span>
       ${cielo === 'nt' ? `<span class="pj-stars" aria-hidden="true">${Array.from({length: 14}, (_, i) => `<i style="left:${(i * 37) % 96 + 2}%;top:${(i * 53) % 70 + 4}%;--d:${(i % 5) * .4}s"></i>`).join('')}</span>` : ''}
       <span class="pj-nube" aria-hidden="true" style="top:14%"></span><span class="pj-nube b" aria-hidden="true" style="top:46%"></span>
       <svg class="pj-montes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="m1" d="M0 70 C15 55 25 62 38 50 C50 40 60 58 72 46 C84 36 92 50 100 44 L100 100 L0 100Z"/><path class="m2" d="M0 84 C20 74 34 82 50 72 C66 64 80 78 100 70 L100 100 L0 100Z"/></svg>
-      <svg class="pj-camino" viewBox="0 0 100 ${R.H}" preserveAspectRatio="none" aria-hidden="true">
+      <svg class="pj-camino v" viewBox="0 0 100 ${R.H}" preserveAspectRatio="none" aria-hidden="true">
         <path class="road" d="${R.path(todos)}"/><path class="hecho" d="${R.path(hechos)}"/><path class="linea" d="${R.path(todos)}"/></svg>
-      <span class="pj-hoy" style="left:${R.start.x}%;top:${R.start.y}px" aria-hidden="true">${ic('home')}</span>
-      ${inner(R.pts)}
-      ${next(R.end)}
+      <svg class="pj-camino h" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path class="road" d="${Hz.path(todosH)}"/><path class="hecho" d="${Hz.path(hechosH)}"/><path class="linea" d="${Hz.path(todosH)}"/></svg>
+      <span class="pj-hoy" style="${pos(R.start, Hz.start)}" aria-hidden="true">${ic('home')}</span>
+      ${inner(R.pts, Hz.pts)}
+      ${next(pos(R.end, Hz.end))}
       ${extra || ''}
     </section>`;
   }
   function mapaHTML() {
     const list = ordenRuta(S.goals), cur = list.findIndex(g => g.s < g.t), fondos = S.goals.filter(g => !conTope(g));
     return escenaHTML(list.length, cur, 'La ruta de sus metas', 'metas',
-      pts => list.map((g, k) => destinoHTML(g, pts[k], k, k === cur)).join(''),
-      e => `<button type="button" class="pj-next" data-act="newGoal" style="left:${e.x}%;top:${e.y}px" aria-label="Nueva meta: un destino nuevo">${ic('plus')}<span>Nuevo destino</span></button>`,
+      (pts, hz) => list.map((g, k) => destinoHTML(g, pts[k], k, k === cur, hz[k])).join(''),
+      e => `<button type="button" class="pj-next" data-act="newGoal" style="${e}" aria-label="Nueva meta: un destino nuevo">${ic('plus')}<span>Nuevo destino</span></button>`,
       fondos.length ? `<div class="pj-alcancias" aria-label="Alcancías sin tope">${fondos.map(g => `<button type="button" class="pj-alc" data-pj-open="${esc(g.id)}" aria-label="${esc(g.n)}: ${fmt(g.s)}. Abrir">${ic(esc(g.i || 'coin'))}<span class="mono">${short(g.s)}</span></button>`).join('')}</div>` : '');
   }
   /* --- Proyectos en el mapa: cada proyecto es una misión-destino --- */
   // Orden: lo terminado atrás (abajo); lo abierto por fecha límite (lo más urgente primero)
   const ordenMisiones = () => [...S.projs.filter(p => p.done), ...sortOpen(S.projs.filter(p => !p.done))];
-  function misionHTML(p, pt, k, cur) {
+  function misionHTML(p, pt, k, cur, h) {
     const st = stepsOf(p), pct = pctOf(p), done = !!p.done, due = dueInfo(p.due, isoOf(new Date()), done), w = ownerOf(p.w);
     const icon = done ? 'trophy' : p.i && p.i !== 'target' ? esc(p.i) : 'target';
     const c = w === 'V' ? ['var(--a3)', 'var(--a1)'] : w === 'D' ? ['var(--a2)', 'var(--a1)'] : ['var(--a1)', 'var(--a3)'];
-    return `<button type="button" class="pj-dest mision${done ? ' done' : ''}${cur ? ' cur' : ''}${due && due.late ? ' late' : ''}" data-pj-open-p="${esc(p.id)}" style="left:${pt.x}%;top:${pt.y}px;--k:${k};--p:${done ? 1 : pct};--c1:${c[0]};--c2:${c[1]}" aria-label="Misión ${esc(p.n)}: ${doneCount(p)} de ${st.length} pasos${done ? ', lograda' : ''}${due && due.late ? ', se pasó la fecha' : ''}. Abrir">
+    return `<button type="button" class="pj-dest mision${done ? ' done' : ''}${cur ? ' cur' : ''}${due && due.late ? ' late' : ''}" data-pj-open-p="${esc(p.id)}" style="${pos(pt, h)};--k:${k};--p:${done ? 1 : pct};--c1:${c[0]};--c2:${c[1]}" aria-label="Misión ${esc(p.n)}: ${doneCount(p)} de ${st.length} pasos${done ? ', lograda' : ''}${due && due.late ? ', se pasó la fecha' : ''}. Abrir">
       <span class="pj-dest-ring"><span class="pj-dest-in">${ic(icon)}</span>${cur ? `<span class="pj-walker" aria-hidden="true">${heads(w, 28)}</span>` : ''}${done ? `<span class="pj-badge open" aria-hidden="true">${COFRE(true)}</span>` : due && due.late ? `<span class="pj-late" aria-hidden="true">${ic('alert')}</span>` : ''}</span>
       <span class="pj-dest-l"><b>${esc(p.n)}</b><span class="mono">${done ? 'Lograda' : st.length ? `${doneCount(p)}/${st.length} pasos` : 'Sin pasos'}</span></span>
     </button>`;
@@ -278,8 +291,8 @@ const Planes = (() => {
   function mapaProyHTML() {
     const list = ordenMisiones(), cur = list.findIndex(p => !p.done);
     return escenaHTML(list.length, cur, 'El mapa de sus misiones', 'misiones',
-      pts => list.map((p, k) => misionHTML(p, pts[k], k, k === cur)).join(''),
-      e => `<button type="button" class="pj-next" data-pl-new aria-expanded="${formOpen}" aria-controls="plForm" style="left:${e.x}%;top:${e.y}px" aria-label="Nueva misión">${ic('plus')}<span>Nueva misión</span></button>`);
+      (pts, hz) => list.map((p, k) => misionHTML(p, pts[k], k, k === cur, hz[k])).join(''),
+      e => `<button type="button" class="pj-next" data-pl-new aria-expanded="${formOpen}" aria-controls="plForm" style="${e}" aria-label="Nueva misión">${ic('plus')}<span>Nueva misión</span></button>`);
   }
   // Ideas rápidas: plantillas en íconos (una toca y queda creada con sus pasos)
   const ideasHTML = () => `<div class="pj-ideas" role="group" aria-label="Ideas para una misión nueva">${TPL.map(t => `<button type="button" class="pj-idea" data-pl-tpl="${t.k}" aria-label="Crear misión con plantilla: ${t.t}. ${t.steps.length} pasos">${ic(t.i)}<span>${t.t}</span></button>`).join('')}</div>`;
