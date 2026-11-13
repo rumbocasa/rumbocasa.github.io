@@ -360,7 +360,6 @@ const views = {
     return `<div class="view-head rv"><div class="eyebrow">// ${S.goals.length} metas activas · ${fmt(tot)} ahorrados</div><h1>Lo que <span class="hl">vamos a lograr</span></h1></div>
     ${S.goals.length ? `<div class="goals" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))">${S.goals.map((g, i) => goalCard(g, i + 1, true)).join('')}</div>` : `<div class="glass">${empty('target', 'Aún no tienen metas', 'Cuando creen una meta de ahorro la verán aquí.')}</div>`}`;
   },
-  apuntes() { return typeof Apuntes === 'object' ? Apuntes.html() : ''; },
   tareas() {
     $('#wm').innerHTML = '';
     return `<div class="view-head rv"><div class="eyebrow">// lo que estamos construyendo</div><h1>Tareas, metas y <span class="hl">proyectos</span></h1></div>
@@ -399,17 +398,21 @@ function render(animate) {
   catch (e) { console.error('Rumbo:', e); view.innerHTML = `<div class="glass">${empty('info', 'Algo se enredó en esta pantalla', 'Sus datos siguen guardados. Prueben otra pestaña o recarguen la página.')}</div>`; }
   if (animate) { view.classList.add('enter'); clearTimeout(render.t); render.t = setTimeout(() => view.classList.remove('enter'), 1600); countUp(); }
   try { Voces.afterRender(); Avatares.afterRender(view); } catch (e) { console.error('Rumbo:', e); }
-  try { if (current === 'finanzas') Graficas.after(view); else if (current === 'perfil') Perfil.after(view); else if (current === 'tareas') Planes.after(view); else if (current === 'apuntes') Apuntes.after(view); } catch (e) { console.error('Rumbo:', e); }
-  try { if (typeof Apuntes === 'object') Apuntes.visible(current === 'apuntes' && !gateOpen); } catch (e) { console.error('Rumbo:', e); }
+  try { if (current === 'finanzas') Graficas.after(view); else if (current === 'perfil') Perfil.after(view); else if (current === 'tareas') Planes.after(view); } catch (e) { console.error('Rumbo:', e); }
+  // v2.3: burbuja del chat flotante en todas las pantallas (menos la entrada)
+  try { if (typeof Apuntes === 'object') Apuntes.sync(!gateOpen); } catch (e) { console.error('Rumbo:', e); }
   if (typeof setupScroll === 'function') setupScroll();
 }
 async function route(first) {
-  const h = (location.hash || '#inicio').slice(1), next = views[h] ? h : 'inicio';
+  let h = (location.hash || '#inicio').slice(1);
+  // v2.3: #apuntes ya no es una pantalla: abre el chat flotante y se queda donde estaba
+  if (h === 'apuntes') { const vuelta = current || 'inicio'; history.replaceState(null, '', '#' + vuelta); h = vuelta; if (typeof Apuntes === 'object' && !gateOpen) setTimeout(() => Apuntes.abrir(), 50); }
+  const next = views[h] ? h : 'inicio';
   if (!first && next === current) return;
   markTab(next);
   if (next === 'perfil' && current !== 'perfil') perfilTab = null;
   document.body.dataset.mod = next;
-  { const ord = ['inicio', 'finanzas', 'apuntes', 'tareas', 'perfil'], i0 = ord.indexOf(TAB_OF[current] || current), i1 = ord.indexOf(TAB_OF[next] || next); view.dataset.dir = i1 < i0 ? 'b' : 'f'; }
+  { const ord = ['inicio', 'finanzas', 'tareas', 'perfil'], i0 = ord.indexOf(TAB_OF[current] || current), i1 = ord.indexOf(TAB_OF[next] || next); view.dataset.dir = i1 < i0 ? 'b' : 'f'; }
   if (current && !first && !reduce) { view.classList.add('view-out'); await sleep(250); view.classList.remove('view-out'); }
   current = next; render(true); window.scrollTo(0, 0); moveInd();
   if (!gateOpen) compa('onRoute', next, view.dataset.dir || 'f');
@@ -596,7 +599,7 @@ view.addEventListener('submit', e => {
   if (e.target.id === 'hoyNota') {
     e.preventDefault(); const inp = $('#hoyNotaTx'), t = inp.value.trim(); if (!t || typeof Apuntes !== 'object') { inp.focus(); return; }
     inp.value = ''; Apuntes.enviar(t); const k = Aprende.clasificar(t, {cats: S.cats, hoy: new Date()}).tipo;
-    island({icon: 'chat', color: 'a1', title: 'Guardado en Apuntes', sub: k === 'pregunta' ? 'Coral y Oreo ya respondieron' : `Lo entendí como ${({tarea: 'tarea', gasto: 'gasto', idea: 'idea', plan: 'plan', meta: 'meta', ajuste: 'ajuste', nota: 'nota'})[k] || 'nota'}`, action: 'Ver', dur: 4200, onAction: () => { setTimeout(() => { location.hash = '#apuntes'; }, 50); }});
+    island({icon: 'chat', color: 'a1', title: 'Guardado en el chat', sub: k === 'pregunta' ? 'Coral y Oreo ya respondieron' : `Lo entendí como ${({tarea: 'tarea', gasto: 'gasto', idea: 'idea', plan: 'plan', meta: 'meta', ajuste: 'ajuste', nota: 'nota'})[k] || 'nota'}`, action: 'Ver', dur: 4200, onAction: () => { setTimeout(() => Apuntes.abrir(), 50); }});
     return;
   }
   if (e.target.id !== 'propForm') return;
@@ -884,7 +887,7 @@ function showGate() {
   document.querySelector('.app').inert = true; document.querySelector('.dock').inert = true;
   document.body.classList.add('locked'); gate.hidden = false;
   $('#gateCard').getAnimations().forEach(a => a.cancel()); gate.getAnimations().forEach(a => a.cancel());
-  Voces.clear(); cheerOff(); compa('hide'); $('#loadRing').classList.remove('done'); Marca.play($('#gateBrand'));
+  Voces.clear(); cheerOff(); compa('hide'); if (typeof Apuntes === 'object') Apuntes.sync(false); $('#loadRing').classList.remove('done'); Marca.play($('#gateBrand'));
   // Paso 1: solo logo, nombre y "¿Quién entra?"; el último perfil usado queda marcado
   document.querySelectorAll('.gp').forEach(b => { const on = b.dataset.gp === S.profile; b.classList.toggle('last', on); b.setAttribute('aria-label', `Entrar como ${b.dataset.gp === 'D' ? 'David' : 'Valentina'}${on ? ', última vez' : ''}`); });
   // v1.4: con la nube activa cada uno entra con su cuenta (correo o Google) y no se elige perfil
@@ -967,7 +970,7 @@ async function enterApp() {
   await sleep(380);
   $('#gateCard').animate([{opacity: 1, transform: 'scale(1)', filter: 'blur(0)'}, {opacity: 0, transform: 'scale(1.12)', filter: 'blur(8px)'}], {duration: T0(500), easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards'});
   await sleep(320);
-  gate.hidden = true; document.body.classList.remove('locked'); gateOpen = false;
+  gate.hidden = true; document.body.classList.remove('locked'); gateOpen = false; if (typeof Apuntes === 'object') Apuntes.sync(true);
   document.querySelector('.app').inert = false; document.querySelector('.dock').inert = false;
   document.querySelector('.app').animate([{opacity: 0, transform: 'scale(.97)', filter: 'blur(10px)'}, {opacity: 1, transform: 'none', filter: 'blur(0)'}], {duration: T0(700), easing: 'cubic-bezier(.2,.8,.2,1)'});
   document.querySelector('.dock').animate([{opacity: 0, transform: 'translateY(40px)'}, {opacity: 1, transform: 'none'}], {duration: T0(700), delay: T0(250), easing: 'cubic-bezier(.2,1.3,.4,1)', fill: 'backwards'});

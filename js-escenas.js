@@ -72,7 +72,7 @@ const Escenas = (function () {
       <div class="hoy-row">${cs.map((c, k) => `<article class="hoy-c t-${c.t}" style="--k:${k}">${tile(c.i, c.t)}<div class="hoy-tx"><b>${esc(c.titulo)}</b><span>${esc(c.texto)}</span></div>${btn(c)}</article>`).join('')}</div></section>`;
   }
   // Nota rápida desde Inicio (va a Apuntes)
-  const notaRapida = () => `<form class="glass hoy-nota rv" id="hoyNota" style="--i:7" autocomplete="off">${tile('chat', 'a1')}<input id="hoyNotaTx" maxlength="300" placeholder="¿Algo que no se les olvide? Escríbanlo aquí" aria-label="Escribir en Apuntes"><button class="btn pri" type="submit">${ic('send')}<span>Guardar</span></button></form>`;
+  const notaRapida = () => `<form class="glass hoy-nota rv" id="hoyNota" style="--i:7" autocomplete="off">${tile('chat', 'a1')}<input id="hoyNotaTx" maxlength="300" placeholder="¿Algo que no se les olvide? Escríbanlo aquí" aria-label="Escribir en el chat de la casa"><button class="btn pri" type="submit">${ic('send')}<span>Guardar</span></button></form>`;
 
   return {escena, goalCard, hoy, notaRapida};
 })();

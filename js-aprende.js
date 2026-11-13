@@ -194,8 +194,8 @@ const Aprende = (function () {
     const atr = metas(st, ref).filter(x => x.atrasada).sort((a, b) => (a.meses || 99) - (b.meses || 99))[0];
     if (atr) res.push({p: 65, i: 'target', t: 'a3', titulo: `${atr.n} necesita un empujón`, texto: `Faltan ${fmtN(atr.falta)}: para llegar a tiempo son ${fmtN(atr.necesita)} al mes.`, act: 'plan', id: atr.id, label: 'Abrir plan'});
     const sin = (st.notas || []).filter(n => !n.hecho && !n.conv && n.k && n.k !== 'nota' && n.k !== 'pregunta' && n.by !== 'bot').length;
-    if (sin) res.push({p: 50, i: 'bulb', t: 'a1', titulo: `${sin} ${sin === 1 ? 'apunte espera' : 'apuntes esperan'}`, texto: 'Ideas y tareas del chat que aún no convierten.', act: 'go', id: 'apuntes', label: 'Abrir apuntes'});
-    if (!res.length) res.push({p: 10, i: 'heart', t: 'ok', titulo: 'Todo en orden', texto: 'Nada urgente hoy. Buen día para avanzar una meta o escribir una idea en Apuntes.', act: 'go', id: 'apuntes', label: 'Escribir'});
+    if (sin) res.push({p: 50, i: 'bulb', t: 'a1', titulo: `${sin} ${sin === 1 ? 'mensaje espera' : 'mensajes esperan'}`, texto: 'Ideas y tareas del chat que aún no se convierten.', act: 'go', id: 'apuntes', label: 'Abrir el chat'});
+    if (!res.length) res.push({p: 10, i: 'heart', t: 'ok', titulo: 'Todo en orden', texto: 'Nada urgente hoy. Buen día para avanzar una meta o escribir una idea en el chat.', act: 'go', id: 'apuntes', label: 'Escribir'});
     return res.sort((a, b) => b.p - a.p).slice(0, 4);
   }
 
