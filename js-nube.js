@@ -32,15 +32,18 @@ const Nube = (function () {
   const nombre = p => p === 'D' ? 'David' : 'Valentina';
   const toData = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
   function fromData(u) { const [h, b64] = String(u).split(','), bin = atob(b64 || ''), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], {type: (h.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream'}); }
+  // Ningún paso de la entrada puede quedarse esperando para siempre (en iPhone pasaba)
+  const plazo = (p, ms, code, message) => Promise.race([p, new Promise((_, no) => setTimeout(() => no({code, message}), ms))]);
+  const REDIR = 'hogar:v1:redir';
   const loadJs = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Sin conexión con Firebase')); document.head.appendChild(s); });
 
   /* ===== Arranque de Firebase ===== */
   function iniciar() {
     if (cargando) return cargando;
     cargando = (async () => {
-      await loadJs(SDK + 'firebase-app-compat.js');
-      await Promise.all([loadJs(SDK + 'firebase-auth-compat.js'), loadJs(SDK + 'firebase-firestore-compat.js')]);
-      firebase.initializeApp(C.firebase);
+      const listoSdk = () => typeof firebase === 'object' && firebase.auth && firebase.firestore;
+      if (!listoSdk()) await plazo((async () => { if (typeof firebase !== 'object') await loadJs(SDK + 'firebase-app-compat.js'); await Promise.all([firebase.auth ? 0 : loadJs(SDK + 'firebase-auth-compat.js'), firebase.firestore ? 0 : loadJs(SDK + 'firebase-firestore-compat.js')]); })(), 15000, 'sdk-timeout', 'No cargó Firebase');
+      if (!firebase.apps.length) firebase.initializeApp(C.firebase);
       auth = firebase.auth(); auth.languageCode = 'es';
       db = firebase.firestore();
       // Safari del iPhone a veces congela la conexión en vivo de Firestore: que detecte y use long-polling
@@ -49,7 +52,9 @@ const Nube = (function () {
       // Rumbo ya guarda su propia copia en localStorage, así que funciona igual sin internet.
       try { indexedDB.deleteDatabase(`firestore/[DEFAULT]/${C.firebase.projectId}/main`); } catch (e) {}
       ref = db.collection('hogares').doc(C.casa || 'rumbo');
-      try { await auth.getRedirectResult(); } catch (e) { mostrarError(e); }
+      // Solo si venimos de Google por redirección. En Safari del iPhone esta consulta puede quedarse colgada: máximo 6 s.
+      let venia = false; try { venia = sessionStorage.getItem(REDIR) === '1'; sessionStorage.removeItem(REDIR); } catch (e) {}
+      if (venia) { try { await plazo(auth.getRedirectResult(), 6000, 'redirect-timeout', ''); } catch (e) { if (e && e.code !== 'redirect-timeout') mostrarError(e); } }
       auth.onAuthStateChanged(cambioCuenta);
     })();
     cargando.catch(() => { cargando = null; });
@@ -201,7 +206,8 @@ const Nube = (function () {
     const c = e && e.code || '';
     if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'El correo o la contraseña no coinciden.';
     if (/too-many-requests/.test(c)) return 'Muchos intentos seguidos. Esperen un momento y vuelvan a probar.';
-    if (/network-request-failed|unavailable/.test(c)) return 'No hay internet. Revisen la conexión.';
+    if (/network-request-failed/.test(c)) return 'No hubo conexión con Google. Revisen el internet y vuelvan a intentar.';
+    if (/unavailable|sdk-timeout|auth-timeout/.test(c)) return 'La nube no respondió a tiempo. Toquen Reintentar; si sigue igual, cierren Rumbo y ábranlo otra vez.';
     if (/email-already-in-use/.test(c)) return 'Ese correo ya tiene contraseña. Entren con ella o usen «Olvidé mi contraseña».';
     if (/weak-password/.test(c)) return 'La contraseña debe tener al menos 6 caracteres.';
     if (/invalid-email/.test(c)) return 'Ese correo no está bien escrito.';
@@ -267,7 +273,7 @@ const Nube = (function () {
       catch (er) {
         // En el iPhone (sobre todo con la app instalada) el regreso de Google se pierde: mejor decirlo claro
         if (iOSApp() && /popup-blocked|operation-not-supported|web-storage-unsupported|internal-error/.test(er.code || '')) pintar('login', 'En la app instalada del iPhone, Google no deja volver a Rumbo. Entren con su correo y contraseña (si no tienen, toquen «Olvidé mi contraseña» y la crean), o abran Rumbo en Safari.');
-        else if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(er.code || '')) auth.signInWithRedirect(pr); else mostrarError(er);
+        else if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(er.code || '')) { try { sessionStorage.setItem(REDIR, '1'); } catch (e) {} auth.signInWithRedirect(pr); } else mostrarError(er);
       }
     } else if (k === 'crear' || k === 'entrar') { modoForm = k; pintar('login'); }
     else if (k === 'olvide') {
@@ -294,9 +300,13 @@ const Nube = (function () {
     if (user && listo) { seguir(); return; }
     pintar('cargando');
     try { await iniciar(); }
-    catch (e) { const m = memo(); if (m && m.perfil) pintar('offline', m); else pintar('error', 'No hay internet para conectar con la casa.'); return; }
+    catch (e) {
+      const m = memo(), sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+      const txt = sinRed ? 'Este celular no tiene internet ahora mismo.' : 'No se pudo conectar con la nube de la casa (Firebase no respondió). Toquen Reintentar; si sigue igual, cierren Rumbo y ábranlo otra vez.';
+      if (m && m.perfil) pintar('offline', m); else pintar('error', txt); return;
+    }
     // Espera a que Firebase sepa si hay sesión abierta; sin sesión, muestra el formulario (p. ej. después de cerrar sesión)
-    await new Promise(r => { const off = auth.onAuthStateChanged(() => { off(); r(); }); });
+    await plazo(new Promise(r => { const off = auth.onAuthStateChanged(() => { off(); r(); }); }), 8000, 'auth-timeout', '').catch(() => {});
     if (!auth.currentUser) pintar('login');
     // Si la sesión ya estaba abierta, onAuthStateChanged sigue solo; si no, muestra el formulario
   }
