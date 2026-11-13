@@ -72,6 +72,45 @@ const Planes = (() => {
   ];
   const fromTemplate = (t, id) => ({id, n: clean(t.n, 60), i: t.i || 'target', w: 'A', due: '', why: clean(t.why, MAX_WHY), done: false, steps: t.steps.slice(0, MAX_STEPS).map(n => ({n: clean(n, 80), done: false}))});
 
+  /* --- v2.6 · Modo juego (Metas y Proyectos): ruta, cofres, premios y niveles (todo puro) --- */
+  const PARADAS = [25, 50, 75, 100], COFRE_PTS = {25: 10, 50: 10, 75: 15, 100: 25};
+  const PREMIOS = ['Escoger la película del viernes', 'Desayuno en la cama (lo hace quien vaya perdiendo)', 'Un día libre de lavar la loza', 'Helado de camino a la casa', 'Masaje de 10 minutos', 'Paseo largo con Coral y Oreo', 'Escoger la música toda la semana', 'Noche de juegos de mesa', 'Postre sorpresa', 'Una tarde sin celular, solo ustedes dos'];
+  const PREMIOS_GRANDES = ['Cita sorpresa: la planea quien vaya ganando', 'Cena en su restaurante favorito', 'Noche de pizza y película', 'Un día entero de consentir al otro', 'Una foto de recuerdo enmarcada para la casa'];
+  const NIVELES = ['Recién mudados', 'Vecinos juiciosos', 'Ahorradores de corazón', 'Viajeros', 'Exploradores', 'Capitanes de la casa', 'Leyendas de Rumbo'];
+  const hashOf = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  // El premio sale del id y la parada: siempre el mismo para el mismo cofre (no se puede "volver a tirar")
+  const premioDe = (id, s) => s === 100 ? PREMIOS_GRANDES[hashOf(id + ':' + s) % PREMIOS_GRANDES.length] : PREMIOS[hashOf(id + ':' + s) % PREMIOS.length];
+  const nivelDe = n => NIVELES[Math.min(NIVELES.length - 1, Math.max(0, (n | 0) - 1))];
+  const cofresDe = g => Array.isArray(g.cofres) ? g.cofres : [];
+  const conTope = g => !g.open && g.t > 0;
+  // Las 4 paradas de una meta: si ya llegaron (listo) y si el cofre ya se abrió
+  function paradas(g) {
+    if (!conTope(g)) return [];
+    const pct = g.s / g.t;
+    return PARADAS.map(s => { const c = cofresDe(g).find(x => x.s === s); return {s, listo: pct >= s / 100 - 1e-9, abierto: !!c, premio: c ? c.p : '', u: !!(c && c.u)}; });
+  }
+  const listos = g => paradas(g).filter(p => p.listo && !p.abierto);
+  // Abre un cofre si ya llegaron a esa parada. Devuelve {c, pts} o null. Los puntos van a los dos (es un logro de equipo).
+  function abrirCofre(g, s, by, hoy) {
+    const pa = paradas(g).find(p => p.s === s); if (!pa || !pa.listo || pa.abierto) return null;
+    const c = {s, p: premioDe(g.id, s), at: hoy || '', by: by === 'D' ? 'D' : 'V', u: false};
+    if (!Array.isArray(g.cofres)) g.cofres = [];
+    g.cofres.push(c);
+    return {c, pts: COFRE_PTS[s]};
+  }
+  // Orden de la ruta: lo cumplido atrás, luego lo que vence primero, luego lo que no tiene fecha
+  const byTime = g => g.by instanceof Date && !isNaN(g.by) ? g.by.getTime() : (g.by ? new Date(g.by).getTime() || 9e15 : 9e15);
+  const ordenRuta = goals => goals.filter(conTope).map((g, i) => [g, i]).sort((a, b) => ((b[0].s >= b[0].t) - (a[0].s >= a[0].t)) || byTime(a[0]) - byTime(b[0]) || a[1] - b[1]).map(x => x[0]);
+  // Todos los premios ganados (cofres de metas + proyectos terminados), los sin cobrar primero
+  function premiosDe(goals, projs) {
+    const out = [];
+    goals.forEach(g => cofresDe(g).forEach(c => out.push({k: `g|${g.id}|${c.s}`, t: c.p, de: `${g.n} · ${c.s} %`, u: !!c.u, big: c.s === 100})));
+    projs.forEach(p => { if (p.done && p.premio) out.push({k: `p|${p.id}`, t: p.premio, de: p.n, u: !!p.premioU, big: false}); });
+    return out.sort((a, b) => a.u - b.u);
+  }
+  // Dificultad de una misión (proyecto) según sus pasos: 1 a 3 estrellas
+  const dificultad = p => { const n = stepsOf(p).length; return n <= 3 ? 1 : n <= 6 ? 2 : 3; };
+
   /* ===== Estado del módulo (solo de pantalla; los datos viven en S) ===== */
   let seg = 'tareas', formOpen = false, bound = false, swap = false, winId = null, bumpId = null, openFin = false, editId = null, stepEdit = null;
   const openDone = {V: false, D: false}, openSteps = new Set();
@@ -158,13 +197,71 @@ const Planes = (() => {
     const nc = Array.isArray(p.costos) ? p.costos.length : 0, nf = Array.isArray(p.fotos) ? p.fotos.length : 0, lugar = clean(p.lugar, 60);
     return `<p class="pl-plan">${ic('spark')}<span><b>${lugar ? esc(lugar) : 'Plan en marcha'}</b><span class="mono">${plural(nc, 'costo', 'costos')} · ${plural(nf, 'foto', 'fotos')}</span></span></p>`;
   }
+  /* --- v2.6 · Modo juego --- */
+  // Cofre dibujado (cerrado o abierto). Usa currentColor para la madera y --gold para los herrajes.
+  const COFRE = abierto => abierto
+    ? '<svg class="pj-cofre-svg" viewBox="0 0 48 44" aria-hidden="true"><path class="pj-cf-tapa" d="M6 10c4-8 32-8 36 0l-4 8H10z"/><rect class="pj-cf-caja" x="6" y="18" width="36" height="22" rx="4"/><path class="pj-cf-luz" d="M14 18l-4-12M24 17V3M34 18l4-12"/><rect class="pj-cf-cerr" x="21" y="22" width="6" height="8" rx="1.5"/></svg>'
+    : '<svg class="pj-cofre-svg" viewBox="0 0 48 44" aria-hidden="true"><path class="pj-cf-tapa" d="M6 20c0-12 36-12 36 0z"/><rect class="pj-cf-caja" x="6" y="20" width="36" height="20" rx="4"/><path class="pj-cf-banda" d="M6 26h36"/><rect class="pj-cf-cerr" x="21" y="22" width="6" height="8" rx="1.5"/></svg>';
+  const DUO = () => `<span class="pj-walker" aria-hidden="true">${Avatares.head('V', 30, 'happy', '', true)}${Avatares.head('D', 30, 'happy', '', true)}</span>`;
+  let vaultOpen = false;
+  // Marcador del juego: nivel, experiencia, cofres y bóveda de premios (arriba de Metas y de Proyectos)
+  function hudHTML() {
+    const L = typeof level === 'function' ? level() : {n: 1, t: 0, next: 100};
+    const fixed = S.goals.filter(conTope), totC = fixed.length * 4 + S.projs.length;
+    const abiertos = fixed.reduce((a, g) => a + cofresDe(g).length, 0) + S.projs.filter(p => p.done).length;
+    const nListos = fixed.reduce((a, g) => a + listos(g).length, 0), prem = premiosDe(S.goals, S.projs), sinCobrar = prem.filter(x => !x.u).length;
+    const xp = Math.min(1, Math.max(0, (L.t - (L.n - 1) * 100) / 100));
+    const stat = (icon, v, label) => `<div class="pj-stat"><span class="pj-stat-i">${ic(icon)}</span><b class="mono">${v}</b><span>${label}</span></div>`;
+    return `<section class="glass pj-hud" style="--i:2" aria-label="Su juego: nivel, cofres y premios">
+      <div class="pj-lvl"><span class="pj-lvl-n" aria-hidden="true"><b class="mono">${L.n}</b></span>
+        <div class="pj-lvl-tx"><span class="pl-k">Nivel ${L.n}</span><b class="pj-lvl-name">${nivelDe(L.n)}</b>
+          <div class="pj-xp" role="img" aria-label="${L.next - L.t} puntos para el nivel ${L.n + 1}"><i style="transform:scaleX(${xp})"></i></div>
+          <small>${L.next - L.t} pts para «${nivelDe(L.n + 1)}»</small></div></div>
+      <div class="pj-stats">${stat('gift', `${abiertos}/${totC}`, 'cofres abiertos')}${stat('star', sinCobrar, sinCobrar === 1 ? 'premio por cobrar' : 'premios por cobrar')}${stat('trend', short(S.goals.reduce((a, g) => a + (+g.s || 0), 0)), 'ahorrado')}</div>
+      ${nListos ? `<p class="pj-alert">${ic('gift')}<span>${nListos === 1 ? '¡Hay un cofre listo para abrir!' : `¡Hay ${nListos} cofres listos para abrir!`} Búsquenlo brillando en la ruta.</span></p>` : ''}
+      ${prem.length ? `<button type="button" class="pl-fold pj-vault-b" data-pj-vault aria-expanded="${vaultOpen}" aria-controls="pjVault">${ic('arrow')}<span>Bóveda de premios</span><b class="mono">${prem.length}</b></button>
+      <ul class="pj-vault" id="pjVault"${vaultOpen ? '' : ' hidden'}>${prem.map(x => `<li class="${x.u ? 'u' : ''}${x.big ? ' big' : ''}"><span class="pj-v-i">${COFRE(true)}</span><span class="pj-v-tx"><b>${esc(x.t)}</b><small>${esc(x.de)}</small></span><button type="button" class="btn ${x.u ? 'ghost' : 'acc'} pj-v-btn" data-pj-cobrar="${esc(x.k)}" aria-pressed="${x.u}">${x.u ? 'Cobrado' : 'Cobrar'}</button></li>`).join('')}</ul>` : ''}
+    </section>`;
+  }
+  // Una meta en la ruta: isla con anillo de avance + tarjeta con sus 4 cofres
+  function nodoHTML(g, k, cur) {
+    const pa = paradas(g), pct = Math.min(1, g.s / g.t), done = g.s >= g.t, dd = g.by ? Math.ceil((byTime(g) - Date.now()) / 864e5) : null;
+    const meta = done ? 'Cumplida' : `${Math.round(pct * 100)} %${dd === null ? '' : dd > 0 ? ` · faltan ${dd} días` : ' · se pasó la fecha'}`;
+    const chest = p => p.abierto
+      ? `<span class="pj-chest open" title="${esc(p.premio)}" role="img" aria-label="Cofre del ${p.s} % abierto: ${esc(p.premio)}">${COFRE(true)}<small>${p.s}%</small></span>`
+      : p.listo ? `<button type="button" class="pj-chest ready" data-pj-cofre="${esc(g.id)}|${p.s}" aria-label="Abrir el cofre del ${p.s} % de ${esc(g.n)}">${COFRE(false)}<small>${p.s}%</small></button>`
+      : `<span class="pj-chest lock" role="img" aria-label="Cofre del ${p.s} %: faltan ${fmt(Math.max(0, Math.ceil(g.t * p.s / 100) - g.s))}">${COFRE(false)}<small>${p.s}%</small></span>`;
+    const c = Array.isArray(g.c) ? g.c : ['var(--a1)', 'var(--a3)'];
+    return `<div class="pj-node ${k % 2 ? 'r' : 'l'}${done ? ' done' : ''}${cur ? ' cur' : ''}" style="--k:${k};--c1:${c[0]};--c2:${c[1]}">
+      <button type="button" class="pj-isla" data-act="plan" data-id="${esc(g.id)}" aria-label="Abrir ${esc(g.n)} y su planificación" style="--p:${pct}">
+        <span class="pj-isla-in">${ic(done ? 'trophy' : esc(g.i || 'target'))}</span>${cur ? DUO() : ''}</button>
+      <div class="pj-card">
+        <h3>${esc(g.n)}</h3>
+        <p class="pj-meta mono">${done ? '' : `${fmt(g.s)} de ${fmt(g.t)} · `}${meta}</p>
+        <div class="pj-chests" role="group" aria-label="Cofres de ${esc(g.n)}">${pa.map(chest).join('')}</div>
+        ${done ? '' : `<button type="button" class="btn ghost pj-abono" data-act="abono" data-id="${esc(g.id)}" data-a="100000">${ic('plus')}$100.000</button>`}
+      </div>
+    </div>`;
+  }
+  function rutaHTML() {
+    const list = ordenRuta(S.goals), cur = list.findIndex(g => g.s < g.t);
+    if (!list.length) return '';
+    return `<section class="pj-map" style="--i:3" aria-label="La ruta de sus metas">
+      <div class="pj-start"><span class="pj-flag">${ic('home')}</span><span><b>La ruta de Vale y David</b><small>Cada meta es un destino. Abonen para avanzar y abrir cofres.</small></span></div>
+      <div class="pj-road">${list.map((g, k) => nodoHTML(g, k, k === cur)).join('')}</div>
+      <div class="pj-goal-end"><span class="pj-flag">${ic('star')}</span><small>${cur < 0 ? 'Llegaron a todos los destinos. Creen el siguiente.' : 'Lo que viene lo deciden ustedes: una meta nueva es un destino nuevo.'}</small></div>
+    </section>`;
+  }
+  // Alcancías: metas sin tope (fondos abiertos). No tienen cofres, pero suman.
+  function fondosHTML() {
+    const f = S.goals.filter(g => !conTope(g)); if (!f.length) return '';
+    return `<section class="glass pj-fondos" style="--i:4"><div class="pl-k">${ic('coin')}Alcancías sin tope</div>
+      ${f.map(g => `<div class="pj-fondo"><button type="button" class="pj-fondo-i" data-act="plan" data-id="${esc(g.id)}" aria-label="Abrir ${esc(g.n)}">${ic(esc(g.i || 'coin'))}</button><span class="pj-fondo-tx"><b>${esc(g.n)}</b><span class="mono">${fmt(g.s)}</span></span><button type="button" class="btn ghost pj-abono" data-act="abono" data-id="${esc(g.id)}" data-a="100000">${ic('plus')}$100.000</button></div>`).join('')}</section>`;
+  }
   function goalsHTML() {
-    const tot = S.goals.reduce((a, g) => a + (+g.s || 0), 0), fixed = S.goals.filter(g => !g.open && g.t > 0), falta = fixed.reduce((a, g) => a + Math.max(0, g.t - g.s), 0);
     const bar = `<div class="pl-bar"><p class="pl-quote">${QUOTE.metas}</p><button type="button" class="btn acc pl-cta" data-act="newGoal">${ic('plus')}Nueva meta</button></div>`;
-    if (!S.goals.length) return `${bar}<section class="glass" style="--i:3">${empty('target', 'Aún no tienen metas', 'Una meta es algo para lo que quieren ahorrar: un viaje, la cuota inicial, un colchón. Creen la primera y aquí verán cuánto falta y a qué ritmo van.')}</section>`;
-    return `${bar}<section class="glass pl-total" style="--i:3">${tile('trend', 'ok', 'lg')}
-        <div class="pl-total-tx"><span class="pl-k">Total ahorrado</span><b class="mono">${fmt(tot)}</b><span class="pl-total-sub">en ${plural(S.goals.length, 'meta', 'metas')}${fixed.length ? ` · ${falta ? `faltan ${fmt(falta)} para cumplirlas` : 'todas cumplidas'}` : ''}</span></div></section>
-      <div class="pl-goals">${S.goals.map((g, i) => `<div class="pl-goal">${goalCard(g, i + 4, true)}${planHTML(g)}${threadHTML(g)}</div>`).join('')}</div>`;
+    if (!S.goals.length) return `${hudHTML()}${bar}<section class="glass" style="--i:3">${empty('target', 'Aún no tienen metas', 'Una meta es un destino en su ruta: un viaje, la cuota inicial, un colchón. Creen la primera y cada vez que abonen avanzan y abren cofres con premios.')}</section>`;
+    return `${hudHTML()}${bar}${rutaHTML()}${fondosHTML()}`;
   }
 
   /* --- Proyectos --- */
@@ -192,11 +289,11 @@ const Planes = (() => {
     </form>`;
   }
   function introHTML(has) {
-    const how = [['Escojan una plantilla o escriban el suyo.'], ['Miren «Lo que sigue» y marquen un paso a la vez.'], ['Con el último paso celebran y suman puntos.']];
+    const how = [['Escojan una plantilla o escriban el suyo.'], ['Miren «Lo que sigue» y marquen un paso a la vez.'], ['Con el último paso abren el cofre: puntos y un premio.']];
     return `<section class="glass pl-intro${has ? ' is-compact' : ''}" style="--i:3" aria-labelledby="plIntroT">
       <div class="pl-intro-top"><div class="pl-art" aria-hidden="true">${ART}</div>
         <div class="pl-intro-tx"><h2 id="plIntroT">Lo grande se logra por pasos</h2>
-          <p>Un proyecto es algo que no se compra: se hace. Organizar el cuarto útil, renovar los pasaportes, pintar la sala. Lo parten en pasos, marcan uno a la vez y al terminar ganan <b class="mono">+${PTS}</b> puntos.</p></div></div>
+          <p>Un proyecto es algo que no se compra: se hace. Organizar el cuarto útil, renovar los pasaportes, pintar la sala. Cada proyecto es una misión: la parten en pasos, marcan uno a la vez y al final abren un cofre con <b class="mono">+${PTS}</b> puntos y un premio para los dos.</p></div></div>
       ${has ? '' : `<ol class="pl-how" aria-label="Cómo funciona">${how.map((h, i) => `<li><b class="mono" aria-hidden="true">${i + 1}</b><span>${h[0]}</span></li>`).join('')}</ol>`}
       <div class="pl-k" id="plTplK">${ic('bulb')}${has ? 'Otra idea para arrancar' : 'Toquen una idea y queda creada con sus pasos'}</div>
       <div class="pl-tpls" role="group" aria-labelledby="plTplK">${TPL.map(t => `<button type="button" class="pl-tpl" data-pl-tpl="${t.k}" aria-label="Crear proyecto con plantilla: ${t.t}. Ejemplo: ${t.n}, ${t.steps.length} pasos sugeridos">${tile(t.i, 'a1', 'pl-tpl-i')}<span class="pl-tpl-tx"><b>${t.t}</b><span>${t.n} · ${t.steps.length} pasos</span></span></button>`).join('')}</div>
@@ -238,14 +335,16 @@ const Planes = (() => {
     if (editId === p.id) return editHTML(p, i);
     const st = stepsOf(p), d = doneCount(p), nm = esc(p.n), w = ownerOf(p.w), k = S.projs.indexOf(p);
     const open = openSteps.has(p.id) || !!(stepEdit && stepEdit.id === p.id), due = dueInfo(p.due, isoOf(new Date()), p.done);
-    const prize = p.done ? `<span class="pill ok">${ic('ok')}${rewardText(w)}</span>` : `<span class="pill gd">${ic('star')}${w === 'A' ? `+${PTS / 2} a cada uno` : `+${PTS} al terminar`}</span>`;
+    const prize = p.done ? `<span class="pill ok">${ic('ok')}${rewardText(w)}</span>` : `<span class="pill gd">${ic('gift')}Cofre: ${w === 'A' ? `+${PTS / 2} a cada uno` : `+${PTS}`} y un premio</span>`;
+    const dif = dificultad(p), mision = `<span class="pj-mision"><span>Misión</span><span class="pj-stars" role="img" aria-label="Dificultad ${dif} de 3">${[1, 2, 3].map(x => `<i class="${x <= dif ? 'on' : ''}">${ic('star')}</i>`).join('')}</span></span>`;
     const why = p.why ? `<p class="pl-why"><b>Para qué:</b> ${esc(p.why)}</p>` : p.done ? '' : `<button type="button" class="pl-link" data-pl-edit="why">${PEN}<span>Escriban para qué lo hacen</span></button>`;
     return `<article class="glass pl-proj pl-own-${w}${p.done ? ' is-done' : ''}${winId === p.id ? ' pl-win' : ''}" style="--i:${i}" data-pl-proj="${esc(p.id)}" aria-label="Proyecto: ${nm}">
       <div class="pl-proj-h">${tile(p.done ? 'trophy' : p.i && p.i !== 'target' ? esc(p.i) : 'target', p.done ? 'gd' : 'a1', 'pl-proj-tile')}
-        <div class="pl-proj-tx"><h3>${nm}</h3>${why}
+        <div class="pl-proj-tx">${mision}<h3>${nm}</h3>${why}
           <div class="pl-proj-meta"><span class="pl-chip">${heads(w, 22)}<span>${NAME[w]}</span></span>${prize}${due ? `<span class="pill ${due.late ? 'al' : due.soon ? 'gd' : 'c1'}">${ic(due.late ? 'alert' : 'cal')}${due.text}</span>` : ''}</div></div></div>
       ${due && due.late ? `<p class="pl-late">${ic('alert')}<span>La fecha ya pasó. Sin culpa: denle hoy un empujón o pónganle una fecha nueva.</span></p>` : ''}
-      ${stonesHTML(p)}
+      ${st.length ? `<div class="pj-quest${p.done ? ' fin' : ''}">${stonesHTML(p)}<span class="pj-qchest" role="img" aria-label="${p.done ? 'Cofre abierto' : 'Cofre al final de la misión'}">${COFRE(p.done)}</span></div>` : ''}
+      ${p.done && p.premio ? `<p class="pj-premio">${ic('gift')}<span><b>Premio ganado:</b> ${esc(p.premio)}${p.premioU ? ' · cobrado' : ''}</span></p>` : ''}
       ${nextHTML(p)}
       <div class="pl-meter">${barHTML(pctOf(p), p.done ? 'var(--ok)' : 'linear-gradient(90deg,var(--a1),var(--a3))')}<span class="mono" data-pl-count>${d}/${st.length}</span></div>
       ${st.length ? `<button type="button" class="pl-fold" data-pl-steps aria-expanded="${open}" aria-controls="plSt${k}">${ic('arrow')}<span>Todos los pasos</span><b class="mono">${st.length}</b></button>
@@ -256,7 +355,7 @@ const Planes = (() => {
   }
   function projsHTML() {
     const has = S.projs.length > 0, open = sortOpen(S.projs.filter(p => !p.done)), fin = S.projs.filter(p => p.done);
-    return `${introHTML(has)}
+    return `${hudHTML()}${introHTML(has)}
       ${formOpen ? formHTML() : ''}
       ${open.length ? `<div class="pl-k pl-sec">${ic('clock')}En curso (${open.length})</div><div class="pl-projs">${open.map((p, i) => projHTML(p, i + 5)).join('')}</div>` : has ? `<section class="glass" style="--i:5">${empty('trophy', 'Nada en curso', 'Todo lo que empezaron, lo terminaron. Cuando quieran, arriba hay ideas para el siguiente.')}</section>` : ''}
       ${fin.length ? `<button type="button" class="pl-fold pl-fin" data-pl-fin aria-expanded="${openFin}" aria-controls="plFin">${ic('arrow')}<span>Terminados (${fin.length})</span><b class="mono">+${fin.length * PTS} pts</b></button>
@@ -317,9 +416,10 @@ const Planes = (() => {
   /* ===== Acciones ===== */
   function celebrate(p, pos) {
     let nl = [];
+    if (!p.premio) { p.premio = premioDe(p.id, 'p'); p.premioU = false; save(); }
     try { if (typeof checkBadges === 'function') { nl = checkBadges() || []; save(); } } catch (e) { nl = []; }
     confetti(pos[0], pos[1], 90);
-    island({icon: 'trophy', color: 'gold', title: `Proyecto terminado · ${rewardText(p.w)}`, sub: p.n, dur: 5200});
+    island({icon: 'gift', color: 'gold', title: `¡Misión cumplida! Cofre abierto · ${rewardText(p.w)}`, sub: `Premio: ${p.premio}`, dur: 6200});
     cheer('logro');
     try { if (nl.length && typeof announceLogros === 'function') announceLogros(nl, 5600); } catch (e) {}
   }
@@ -427,6 +527,28 @@ const Planes = (() => {
     island({icon: 'ok', color: 'a1', title: 'Proyecto actualizado', sub: shortN(p.n), dur: 2200});
   }
 
+  // v2.6 · Abrir un cofre de una meta: puntos para los dos, premio y fiesta
+  function abrir(b) {
+    const [id, sv] = String(b.dataset.pjCofre).split('|'), g = S.goals.find(x => x.id === id), s = +sv; if (!g) return;
+    const pos = at(b), r = abrirCofre(g, s, S.profile, isoOf(new Date())); if (!r) return;
+    S.pts.V = (+S.pts.V || 0) + r.pts; S.pts.D = (+S.pts.D || 0) + r.pts;
+    let nl = []; try { if (typeof checkBadges === 'function') nl = checkBadges() || []; } catch (e) {}
+    save(); b.classList.add('pj-pop');
+    setTimeout(() => { repaint(root => root.querySelector(`[data-pj-cofre]`) || root.querySelector('.pj-isla')); call('syncTag'); }, typeof T === 'function' ? T(420) : 420);
+    confetti(pos[0], pos[1], s === 100 ? 140 : 80);
+    island({icon: 'gift', color: 'gold', title: `¡Cofre del ${s} % abierto! +${r.pts} pts para cada uno`, sub: `Premio: ${r.c.p}`, dur: 6400});
+    cheer('logro');
+    try { if (nl.length && typeof announceLogros === 'function') announceLogros(nl, 6600); } catch (e) {}
+  }
+  // Marcar un premio como cobrado (o deshacerlo)
+  function cobrar(b) {
+    const k = String(b.dataset.pjCobrar).split('|');
+    if (k[0] === 'g') { const g = S.goals.find(x => x.id === k[1]), c = g && cofresDe(g).find(x => x.s === +k[2]); if (!c) return; c.u = !c.u; }
+    else { const p = S.projs.find(x => x.id === k[1]); if (!p) return; p.premioU = !p.premioU; }
+    save(); vaultOpen = true;
+    repaint(root => [...root.querySelectorAll('[data-pj-cobrar]')].find(x => x.dataset.pjCobrar === b.dataset.pjCobrar));
+  }
+
   /* ===== Eventos: delegados sobre #view, registrados una sola vez ===== */
   function onClick(e) {
     const t = e.target; if (!t || !t.closest || !t.closest('[data-pl-root]')) return;
@@ -456,6 +578,9 @@ const Planes = (() => {
     else if ((b = t.closest('[data-pl-del]'))) delProj(b);
     else if ((b = t.closest('[data-pl-new]'))) { formOpen = !formOpen; repaint(root => formOpen ? root.querySelector('#plN') : root.querySelector('[data-pl-new]')); }
     else if ((b = t.closest('[data-pl-cancel]'))) { formOpen = false; resetDraft(); repaint(root => root.querySelector('[data-pl-new]')); }
+    else if ((b = t.closest('[data-pj-cofre]'))) abrir(b);
+    else if ((b = t.closest('[data-pj-vault]'))) { const box = document.getElementById('pjVault'); vaultOpen = !vaultOpen; b.setAttribute('aria-expanded', vaultOpen); if (box) box.hidden = !vaultOpen; }
+    else if ((b = t.closest('[data-pj-cobrar]'))) cobrar(b);
     else if ((b = t.closest('[data-pl-w]'))) { if (b.closest('[data-pl-form]')) draft.w = ownerOf(b.dataset.plW); b.parentElement.querySelectorAll('[data-pl-w]').forEach(x => x.setAttribute('aria-pressed', x === b)); }
   }
   function onSubmit(e) {
@@ -478,5 +603,5 @@ const Planes = (() => {
   // Se llama tras pintar la vista: asegura los listeners (html() ya los registra si #view existe)
   function after() { bind(); restore(rootEl()); }
 
-  return {html, after, pure: {complete, pctOf, reward, settle, parseSteps, splitTasks, weekStats, goalThread, isDue, daysLeft, dueInfo, nextIdx, sortOpen, reassign, fromTemplate}};
+  return {html, after, listos, pure: {complete, pctOf, reward, settle, parseSteps, splitTasks, weekStats, goalThread, isDue, daysLeft, dueInfo, nextIdx, sortOpen, reassign, fromTemplate, paradas, abrirCofre, premioDe, ordenRuta, premiosDe, nivelDe, dificultad}};
 })();

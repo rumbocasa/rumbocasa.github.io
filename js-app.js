@@ -137,7 +137,9 @@ function sanitize(raw) {
   out.moves = objs(d.moves).filter(m => has(m.cat) && int(m.a) > 0).map(m => ({n: str(m.n, 'Gasto'), cat: m.cat, a: int(m.a), d: day31(m.d), ...(m.w === 'V' || m.w === 'D' ? {w: m.w} : {})}));
   out.goals = objs(d.goals).filter(g => typeof g.id === 'string').map(g => {
     const by = g.by ? new Date(g.by) : null, c = Array.isArray(g.c) && g.c.length === 2 && g.c.every(x => typeof x === 'string') ? g.c : ['var(--a1)', 'var(--a3)'];
-    return {id: g.id, n: str(g.n, 'Meta'), i: str(g.i, 'target'), c, open: !!g.open, t: g.open ? 0 : (Math.max(0, int(g.t)) || 1), s: Math.max(0, int(g.s)), m: Math.max(0, int(g.m)), by: by && !isNaN(by) ? by : null, ...(isObj(g.plan) ? {plan: sanPlan(g.plan)} : {})};
+    return {id: g.id, n: str(g.n, 'Meta'), i: str(g.i, 'target'), c, open: !!g.open, t: g.open ? 0 : (Math.max(0, int(g.t)) || 1), s: Math.max(0, int(g.s)), m: Math.max(0, int(g.m)), by: by && !isNaN(by) ? by : null, ...(isObj(g.plan) ? {plan: sanPlan(g.plan)} : {}),
+      // v2.6 · Cofres abiertos de la ruta (25/50/75/100 %), con su premio y si ya se cobró
+      ...(Array.isArray(g.cofres) ? {cofres: objs(g.cofres).filter(c => [25, 50, 75, 100].includes(int(c.s))).filter((c, k, a) => a.findIndex(x => int(x.s) === int(c.s)) === k).map(c => ({s: int(c.s), p: str(c.p, 'Premio').slice(0, 80), at: /^\d{4}-\d{2}-\d{2}$/.test(c.at) ? c.at : '', by: c.by === 'D' ? 'D' : 'V', u: !!c.u}))} : {})};
   });
   out.tasks = objs(d.tasks).filter(t => typeof t.id === 'string').map(t => ({id: t.id, n: str(t.n, 'Tarea'), i: str(t.i, 'check'), w: who(t.w), p: Math.max(0, int(t.p)), when: str(t.when, 'Pendientes'), rep: str(t.rep, 'Una vez'), done: !!t.done}));
   out.badges = objs(d.badges); out.notifs = objs(d.notifs).filter(n => typeof n.title === 'string');
@@ -152,7 +154,7 @@ function sanitize(raw) {
   // Coral y Oreo en pantalla (compañeros): encendido salvo que lo apaguen en Ajustes
   out.compas = d.compas !== false;
   // Proyectos de la casa: pasos con casilla; `w` = V, D o A (ambos)
-  out.projs = objs(d.projs).filter(p => typeof p.id === 'string' && typeof p.n === 'string' && p.n.trim()).map(p => ({id: p.id, n: p.n.trim().slice(0, 60), i: str(p.i, 'target'), w: ['V', 'D', 'A'].includes(p.w) ? p.w : 'A', due: str(p.due, ''), why: str(p.why, '').trim().slice(0, 120), done: !!p.done, steps: objs(p.steps).filter(s => typeof s.n === 'string' && s.n.trim()).map(s => ({n: s.n.trim().slice(0, 80), done: !!s.done})).slice(0, 20)}));
+  out.projs = objs(d.projs).filter(p => typeof p.id === 'string' && typeof p.n === 'string' && p.n.trim()).map(p => ({id: p.id, n: p.n.trim().slice(0, 60), i: str(p.i, 'target'), w: ['V', 'D', 'A'].includes(p.w) ? p.w : 'A', due: str(p.due, ''), why: str(p.why, '').trim().slice(0, 120), done: !!p.done, steps: objs(p.steps).filter(s => typeof s.n === 'string' && s.n.trim()).map(s => ({n: s.n.trim().slice(0, 80), done: !!s.done})).slice(0, 20), ...(typeof p.premio === 'string' && p.premio.trim() ? {premio: p.premio.trim().slice(0, 80), premioU: !!p.premioU} : {})}));
   // v2.0 · Apuntes (chat) y foto diaria de Rumbo aprende
   const NOTA_K = ['tarea', 'gasto', 'idea', 'plan', 'meta', 'ajuste', 'pregunta', 'nota', 'respuesta'], ATT_T = ['img', 'audio', 'video', 'file'];
   out.notas = objs(d.notas).filter(n => typeof n.id === 'string' && typeof n.t === 'string').map(n => ({id: n.id.slice(0, 40), t: n.t.slice(0, 1000), k: NOTA_K.includes(n.k) ? n.k : 'nota', at: str(n.at, ''), by: n.by === 'D' ? 'D' : n.by === 'bot' ? 'bot' : 'V',
@@ -570,7 +572,8 @@ function doAct(act, id, el, a) {
     const ef = g.open ? a : Math.min(a, g.t - g.s); if (!(ef > 0)) { island({icon: 'ok', color: 'ok', title: `${g.n} ya está completa`, sub: 'No hace falta abonar más', dur: 2600}); return; }
     a = ef; g.s += a; S.moves.push({n: 'Abono · ' + g.n, cat: 'ahorro', a, d: today, w: S.profile}); S.pts[S.profile] += 10; const nl = checkBadges(); save();
     confetti(...at, 55); render(false);
-    island({icon: 'trend', color: 'a2', title: `${fmt(a)} más cerca de ${g.n}`, sub: g.open ? `${fmt(g.s)} acumulados` : `${Math.round(g.s / g.t * 100)}% completado`, dur: 4200});
+    const cofreListo = typeof Planes === 'object' && Planes.listos ? Planes.listos(g).length : 0;
+    island({icon: cofreListo ? 'gift' : 'trend', color: cofreListo ? 'gold' : 'a2', title: `${fmt(a)} más cerca de ${g.n}`, sub: g.open ? `${fmt(g.s)} acumulados` : cofreListo ? `${Math.round(g.s / g.t * 100)}% · ¡llegaron a una parada! Abran el cofre en Planes › Metas` : `${Math.round(g.s / g.t * 100)}% completado`, dur: cofreListo ? 5600 : 4200});
     announceLogros(nl, 4400); compa('onEvent', 'abono');
   } else if (act === 'prof') Voces.setProfile(id === 'D' ? 'D' : 'V');
   else if (act === 'propOk') {
