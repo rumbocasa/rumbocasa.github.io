@@ -158,9 +158,9 @@ const Apuntes = (function () {
   function abrir() {
     construir(); if (abierto) return; abierto = true;
     // Despeja los avisos en pantalla (pago próximo, perritos) para que la atención quede en el chat
-    try { Voces.clear(); } catch (e) {} try { if (typeof cheerOff === 'function') cheerOff(); } catch (e) {}
+    try { Voces.callar(); } catch (e) {} try { if (typeof cheerOff === 'function') cheerOff(); } catch (e) {}
     scrim.hidden = false; pnl.hidden = false; fab.setAttribute('aria-expanded', 'true'); fab.classList.add('open'); document.body.classList.add('cht-on');
-    q('#chTx').placeholder = `Escríbele a ${nom(otro())} o anota algo…`;
+    q('#chTx').placeholder = `Escríbele a ${nom(otro())}…`;
     pintar(true); marcarVisto();
     setTimeout(() => { if (matchMedia('(hover:hover)').matches) q('#chTx').focus({preventScroll: true}); }, 80);
   }

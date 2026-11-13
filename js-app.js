@@ -842,7 +842,7 @@ function openProfEditor(w) {
   Perfil.bindWizard(setBody, w, data => { S.people[w] = sanPerson(data); save(); dropDogs(sheetDogs); closeSettings(); render(false); syncTag(); confetti(innerWidth / 2, innerHeight / 3, 60); island({icon: 'user', color: 'ok', title: `Perfil de ${personName(w)} guardado`, sub: 'Coral y Oreo ya saben más de ti', dur: 3200}); }, () => { dropDogs(sheetDogs); settingsStep(false); });
   mountDogs(setBody, sheetDogs);
 }
-const openSettings = () => { settingsStep(false); $('#scrimSet').hidden = false; };
+const openSettings = () => { try { Voces.callar(); cheerOff(); } catch (e) {} settingsStep(false); $('#scrimSet').hidden = false; };
 const closeSettings = () => { dropDogs(sheetDogs); $('#scrimSet').hidden = true; $('#setBtn').focus(); };
 $('#setBtn').onclick = openSettings; $('#closeSet').onclick = closeSettings;
 $('#scrimSet').addEventListener('click', e => { if (e.target.id === 'scrimSet') closeSettings(); });

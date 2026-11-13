@@ -214,12 +214,20 @@ const Voces = (function () {
     arBusy = false; cur = null;
     if (then) then(); else setTimeout(next, 500);
   }
-  function next() { if (arBusy) return; const a = arQ.shift(); if (!a) return; arBusy = true; show(a); }
+  // Si Ajustes o el chat están abiertos, el aviso espera su turno en vez de taparlos
+  const ocupado = () => { const s = document.getElementById('scrimSet'); return (s && !s.hidden) || document.body.classList.contains('cht-on'); };
+  function next() { if (arBusy || !arQ.length) return; if (ocupado()) { clearTimeout(next.t); next.t = setTimeout(next, 2500); return; } const a = arQ.shift(); if (!a) return; arBusy = true; show(a); }
   function enqueue(list) { arQ.push(...list); next(); }
   function clear() {
     arQ.length = 0; runId++; dogs.forEach(M.dispose); dogs = []; arBusy = false; cur = null;
     if (hDog) { M.dispose(hDog); hDog = null; clearTimeout(hTimer); }
     const host = q('#avw'); if (host) { host.hidden = true; host.innerHTML = ''; }
+  }
+  // Solo quita el aviso en pantalla (sin vaciar la cola ni tocar al perrito del saludo)
+  function callar() {
+    if (!arBusy) return; runId++; dogs.forEach(M.dispose); dogs = []; arBusy = false; cur = null;
+    const host = q('#avw'); if (host) { host.hidden = true; host.innerHTML = ''; }
+    setTimeout(next, 500);
   }
   function runAct(act) {
     if (!act) return;
@@ -293,6 +301,6 @@ const Voces = (function () {
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !q('#scrimTips').hidden) closeTips(); });
   }
 
-  return {init, items, panelHTML, updateBell, helloHTML, afterRender, greet, afterLogin, clear, openTips, setProfile, nameOf, dogOfProfile, phraseFor, quote, speakerFor, stable, rot,
+  return {init, items, panelHTML, updateBell, helloHTML, afterRender, greet, afterLogin, clear, callar, openTips, setProfile, nameOf, dogOfProfile, phraseFor, quote, speakerFor, stable, rot,
     pure: {rot, franjaDe, subtitulo, alertsFrom, kindOf, speakerOf, pendientesDe}};
 })();
