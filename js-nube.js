@@ -45,8 +45,9 @@ const Nube = (function () {
       db = firebase.firestore();
       // Safari del iPhone a veces congela la conexión en vivo de Firestore: que detecte y use long-polling
       try { db.settings({experimentalAutoDetectLongPolling: true, merge: true}); } catch (e) {}
-      // La caché local puede quedarse pegada en iPhone: no esperar más de 4 s por ella
-      try { await Promise.race([db.enablePersistence({synchronizeTabs: true}), new Promise((_, no) => setTimeout(() => no(new Error('cache lenta')), 4000))]); } catch (e) { /* sin caché: sigue igual */ }
+      // Sin caché de Firestore en IndexedDB: en iPhone se quedaba pegada y todas las lecturas esperaban para siempre.
+      // Rumbo ya guarda su propia copia en localStorage, así que funciona igual sin internet.
+      try { indexedDB.deleteDatabase(`firestore/[DEFAULT]/${C.firebase.projectId}/main`); } catch (e) {}
       ref = db.collection('hogares').doc(C.casa || 'rumbo');
       try { await auth.getRedirectResult(); } catch (e) { mostrarError(e); }
       auth.onAuthStateChanged(cambioCuenta);
