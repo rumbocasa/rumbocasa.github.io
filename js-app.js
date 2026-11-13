@@ -966,7 +966,9 @@ $('#faceBtn').onclick = async () => {
 async function enterApp() {
   gateStep('load');
   // Carga (v0.6): anillo grueso de puntas redondas que se llena, porcentaje grande y un paso a la vez
-  $('#loadRing').innerHTML = ring(0, 128, 16, 'var(--a1)', 'var(--a3)', 'ldr', '<b id="ldN">0</b><span>%</span>');
+  // v2.7 · El perrito de quien entra, centrado dentro del anillo, y el porcentaje debajo de él
+  const ldDog = typeof Avatares === 'object' ? `<span class="ldr-dog">${Avatares.head(S.profile === 'D' ? 'D' : 'V', 58, 'happy', '', true)}</span>` : '';
+  $('#loadRing').innerHTML = ring(0, 148, 13, 'var(--a1)', 'var(--a3)', 'ldr', `${ldDog}<span class="ldr-n"><b id="ldN">0</b><span>%</span></span>`);
   const arc = $('#loadRing .ring-arc'); const C = parseFloat(arc.style.getPropertyValue('--C')); arc.style.animation = 'none'; arc.setAttribute('stroke-dashoffset', C);
   const steps = ['Revisando pagos del mes', 'Registrando automáticos', 'Sumando puntos de la semana', 'Preparando su inicio'];
   const lbl = $('#loadL'), dots = [...document.querySelectorAll('.ldots i')], t0 = performance.now(), dur = T(1900); let si = -1;

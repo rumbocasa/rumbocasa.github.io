@@ -770,9 +770,14 @@ body{background:var(--sunset) fixed,var(--bg)}
 /* 3. Carga: anillo grueso de puntas redondas, porcentaje grande y pasos con puntos */
 .load{gap:12px;padding:14px 0 4px}
 .ldr .ringwrap{animation:ldIn .6s cubic-bezier(.2,1.4,.4,1) both}
-.ldr .ringwrap .center{display:flex;align-items:baseline;justify-content:center}
-.ldr .ringwrap .center b{font-size:38px;font-weight:800;letter-spacing:-.05em;display:inline}
-.ldr .ringwrap .center span{font-size:16px;font-weight:800;color:var(--muted);margin-left:1px}
+.ldr .ringwrap .center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.ldr-dog{display:grid;place-items:center;animation:ldBob 1.6s ease-in-out infinite}
+.ldr-n{display:flex;align-items:baseline;justify-content:center;line-height:1}
+.ldr-n b{font-size:22px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;min-width:1.6em;text-align:right}
+.ldr-n span{font-size:13px;font-weight:800;color:var(--muted);margin-left:1px}
+.ldr{display:grid;place-items:center;width:100%}
+.load{align-items:center;text-align:center}
+@keyframes ldBob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(3deg)}}
 .ldr.done .ringwrap{animation:ldDone .5s cubic-bezier(.2,1.7,.4,1)}
 @keyframes ldIn{from{transform:scale(.6);opacity:0}}
 @keyframes ldDone{40%{transform:scale(1.08)}}
