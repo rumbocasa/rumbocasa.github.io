@@ -176,3 +176,5 @@
 
 body.cht-on{overflow:hidden}
 @media (prefers-reduced-motion:reduce){.cht-fab,.cht-panel,.cht-scrim,.cht-msg,.cht-hello-dog,.cht-wave i,.cht-dot{animation:none!important}}
+/* v2.5 · En el celular la burbuja es más pequeña para tapar menos */
+@media (max-width:640px){.cht-fab{width:50px;height:50px;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(98px + env(safe-area-inset-bottom,0px))}.cht-fab .cht-ico{width:27px;height:27px}}

@@ -463,10 +463,16 @@ function island({icon = 'ok', color = 'a1', title, sub = '', action, onAction, d
 
 // Panel de notificaciones
 function renderNp() { $('#np').innerHTML = `<div class="np">${Voces.panelHTML(Voces.items())}</div>`; }
-const closeNp = () => { $('#np').hidden = true; $('#bell').setAttribute('aria-expanded', 'false'); };
-$('#bell').onclick = e => { e.stopPropagation(); const np = $('#np'), open = np.hidden; np.hidden = !open; $('#bell').setAttribute('aria-expanded', open); if (open) { renderNp(); $('#bellN').hidden = true; const f = np.querySelector('button'); f && f.focus({preventScroll: true}); } };
+const closeNp = () => { const np = $('#np'); np.hidden = true; np.classList.remove('np-m'); document.body.classList.remove('np-on'); $('#bell').setAttribute('aria-expanded', 'false'); };
+// En el celular el panel de avisos va a pantalla completa (fuera de la barra de arriba) para que no se salga por la izquierda
+const npMovil = () => matchMedia('(max-width:640px)').matches;
+$('#bell').onclick = e => { e.stopPropagation(); const np = $('#np'), open = np.hidden; if (!open) { closeNp(); return; }
+  if (npMovil()) { if (np.parentElement !== document.body) document.body.appendChild(np); np.style.setProperty('--npt', Math.round($('#bell').getBoundingClientRect().bottom + 10) + 'px'); np.classList.add('np-m'); document.body.classList.add('np-on'); }
+  else if (np.parentElement === document.body) $('.bellwrap').appendChild(np);
+  np.hidden = false; $('#bell').setAttribute('aria-expanded', open); if (open) { renderNp(); $('#bellN').hidden = true; const f = np.querySelector('button'); f && f.focus({preventScroll: true}); } };
 $('#np').addEventListener('click', e => {
   e.stopPropagation();
+  if (e.target.id === 'np') { closeNp(); return; }
   const b = e.target.closest('[data-np]'), a = e.target.closest('[data-act]'), g = e.target.closest('[data-go]');
   if (b) { const n = S.notifs[+b.dataset.np]; n.act = null; save(); b.closest('div').innerHTML = `<span class="pill ok">${ic('heart')}Gracias enviadas</span>`; confetti(...origin(e.target.closest('.np-i')), 40); }
   else if (a) { closeNp(); doAct(a.dataset.act, a.dataset.id, a, +a.dataset.a); }

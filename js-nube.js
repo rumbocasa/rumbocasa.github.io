@@ -43,7 +43,10 @@ const Nube = (function () {
       firebase.initializeApp(C.firebase);
       auth = firebase.auth(); auth.languageCode = 'es';
       db = firebase.firestore();
-      try { await db.enablePersistence({synchronizeTabs: true}); } catch (e) { /* otra pestaña o navegador sin soporte: sigue sin caché */ }
+      // Safari del iPhone a veces congela la conexión en vivo de Firestore: que detecte y use long-polling
+      try { db.settings({experimentalAutoDetectLongPolling: true, merge: true}); } catch (e) {}
+      // La caché local puede quedarse pegada en iPhone: no esperar más de 4 s por ella
+      try { await Promise.race([db.enablePersistence({synchronizeTabs: true}), new Promise((_, no) => setTimeout(() => no(new Error('cache lenta')), 4000))]); } catch (e) { /* sin caché: sigue igual */ }
       ref = db.collection('hogares').doc(C.casa || 'rumbo');
       try { await auth.getRedirectResult(); } catch (e) { mostrarError(e); }
       auth.onAuthStateChanged(cambioCuenta);
@@ -67,7 +70,8 @@ const Nube = (function () {
   }
   async function conectar() {
     if (listo) return;
-    const snap = await ref.get();
+    // Si la nube no responde en 20 s, mostrar "No pudimos conectar" con Reintentar en vez de cargar para siempre
+    const snap = await Promise.race([ref.get({source: 'server'}).catch(() => ref.get()), new Promise((_, no) => setTimeout(() => no({code: 'unavailable', message: 'La nube tardó demasiado en responder. Revisen el internet e intenten de nuevo.'}), 20000))]);
     if (snap.exists && snap.data().json) { aplicar(snap.data(), false); listo = true; escuchar(); return; }
     // La nube está vacía: hay que decidir de dónde salen los datos
     await new Promise(res => { conectar.fin = res; pintar('vacia'); });
@@ -252,13 +256,18 @@ const Nube = (function () {
       else await auth.signInWithEmailAndPassword(email, pass);
     } catch (er) { go.disabled = false; go.textContent = modoForm === 'crear' ? 'Crear y entrar' : 'Entrar'; err(mensaje(er)); }
   }
+  function iOSApp() { const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); return ios && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches); }
   async function onClick(e) {
     const b = e.target.closest('[data-na]'); if (!b || b.tagName === 'INPUT') return;
     const k = b.dataset.na;
     if (k === 'google') {
       const pr = new firebase.auth.GoogleAuthProvider(); pr.setCustomParameters({prompt: 'select_account'});
       try { await auth.signInWithPopup(pr); }
-      catch (er) { if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(er.code || '')) auth.signInWithRedirect(pr); else mostrarError(er); }
+      catch (er) {
+        // En el iPhone (sobre todo con la app instalada) el regreso de Google se pierde: mejor decirlo claro
+        if (iOSApp() && /popup-blocked|operation-not-supported|web-storage-unsupported|internal-error/.test(er.code || '')) pintar('login', 'En la app instalada del iPhone, Google no deja volver a Rumbo. Entren con su correo y contraseña (si no tienen, toquen «Olvidé mi contraseña» y la crean), o abran Rumbo en Safari.');
+        else if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(er.code || '')) auth.signInWithRedirect(pr); else mostrarError(er);
+      }
     } else if (k === 'crear' || k === 'entrar') { modoForm = k; pintar('login'); }
     else if (k === 'olvide') {
       const em = (document.querySelector('#gateAuth [name="email"]') || {}).value || '';
