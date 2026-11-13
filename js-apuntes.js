@@ -67,7 +67,7 @@ const Apuntes = (function () {
 
   /* ===== Mensajes ===== */
   function attHTML(a) {
-    const u = urls.get(a.id), cls = `cht-att ch-${a.tipo}`;
+    const u = urls.get(a.id), cls = `cht-att ${({img: "cht-img", audio: "cht-audio", video: "cht-video"})[a.tipo] || "cht-file"}`;
     if (a.tipo === 'img') return `<button class="${cls}" data-ch="ver" data-att="${esc(a.id)}" aria-label="Ver foto">${u ? `<img src="${u}" alt="">` : '<span class="cu-spin"></span>'}</button>`;
     if (a.tipo === 'audio') return `<div class="${cls}" data-att="${esc(a.id)}">${u ? `<audio controls preload="metadata" src="${u}"></audio>` : '<span class="cu-spin"></span>'}<small>${a.dur ? dur(a.dur) : ''}</small></div>`;
     if (a.tipo === 'video') return `<div class="${cls}" data-att="${esc(a.id)}">${u ? `<video controls playsinline preload="metadata" src="${u}"></video>` : '<span class="cu-spin"></span>'}</div>`;

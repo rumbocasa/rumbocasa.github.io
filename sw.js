@@ -1,7 +1,7 @@
 /* Rumbo · Service worker (v1.3). Solo funciona cuando la app está publicada (https), no con file://.
    Guarda la app para abrirla rápido y sin señal. Estrategia: muestra lo guardado y, por detrás, trae la versión nueva
    (la ven en la siguiente apertura). Al publicar cambios grandes, subir VERSION para limpiar lo viejo. */
-const VERSION = 'rumbo-202611131437';
+const VERSION = 'rumbo-202611131446';
 const SHELL = [
   './', './index.html', './favicon.svg', './manifest.webmanifest',
   'css-estilos.css', 'css-graficas.css', 'css-perfil.css', 'css-planes.css', 'css-metaplan.css', 'css-compas.css', 'css-cuentas.css', 'css-nube.css', 'css-apuntes.css', 'css-escenas.css',

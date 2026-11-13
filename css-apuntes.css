@@ -178,3 +178,10 @@ body.cht-on{overflow:hidden}
 @media (prefers-reduced-motion:reduce){.cht-fab,.cht-panel,.cht-scrim,.cht-msg,.cht-hello-dog,.cht-wave i,.cht-dot{animation:none!important}}
 /* v2.5 · En el celular la burbuja es más pequeña para tapar menos */
 @media (max-width:640px){.cht-fab{width:50px;height:50px;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(98px + env(safe-area-inset-bottom,0px))}.cht-fab .cht-ico{width:27px;height:27px}}
+/* v2.9 · Fotos y videos siempre dentro de la burbuja */
+.cht-bub,.cht-atts{min-width:0;max-width:100%}
+.cht-bub img,.cht-bub video,.cht-bub audio{max-width:100%}
+.cht-att.cht-img{position:relative;width:min(260px,100%);margin:0;border:0;cursor:zoom-in;box-shadow:0 6px 16px -8px rgba(0,0,0,.35)}
+.cht-att.cht-img img{width:100%;height:auto;max-height:320px;object-fit:cover;aspect-ratio:auto}
+.cht-att.cht-img::after{content:"";position:absolute;right:8px;bottom:8px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.45) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6'/%3E%3Cpath d='m20 20-4.5-4.5'/%3E%3C/svg%3E") center/16px no-repeat}
+.cht-att.cht-video{width:min(260px,100%)}
