@@ -404,3 +404,21 @@ textarea.pl-inp{resize:vertical;min-height:92px;display:block}
 .pj-capa .pj-scrim{z-index:95}.pj-capa .pj-hoja{z-index:96}
 body.pj-hoja-on .cht-fab{opacity:0;pointer-events:none}
 body.pj-hoja-on{overflow:hidden}
+
+/* ===== v2.8 · Proyectos en el mapa ===== */
+.pj-dest.mision .pj-dest-ring{border-radius:26px}
+.pj-dest.mision .pj-dest-in{border-radius:20px}
+.pj-dest.mision .pj-dest-ring{background:conic-gradient(from -45deg,var(--gold) calc(var(--p) * 360deg),rgba(255,255,255,.28) 0)}
+.pj-badge.open{background:#FFF1CC;animation:none;box-shadow:0 0 0 2px #fff}
+.pj-late{position:absolute;right:-6px;top:-6px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--alert);color:#fff;box-shadow:0 0 0 2px #fff;animation:pjBounce 1.4s ease-in-out infinite}
+.pj-late .i{width:16px;height:16px}
+.pj-ideas{display:flex;gap:8px;overflow-x:auto;margin:14px 0 0;padding:2px 2px 8px;scrollbar-width:none}
+.pj-ideas::-webkit-scrollbar{display:none}
+.pj-idea{flex:none;display:grid;justify-items:center;gap:6px;width:92px;padding:12px 6px;border-radius:20px;border:1px solid var(--border);background:var(--glass-strong);box-shadow:var(--shadow);color:var(--fg);font:600 12px/1.2 var(--ui,inherit);text-align:center;cursor:pointer;transition:transform .3s cubic-bezier(.2,1.5,.4,1)}
+.pj-idea .i{width:26px;height:26px;color:var(--a1)}
+.pj-idea:hover{transform:translateY(-3px)}.pj-idea:active{transform:scale(.95)}
+/* La misión dentro de la hoja: sin caja doble */
+.pj-hoja.proy{max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain}
+.pj-hoja.proy .pl-proj{margin:0;padding:0;background:none;border:0;box-shadow:none;animation:none;-webkit-backdrop-filter:none;backdrop-filter:none;overflow:visible}
+.pj-hoja.proy .pl-proj-h{padding-right:40px}
+@media (prefers-reduced-motion:reduce){.pj-late{animation:none!important}}

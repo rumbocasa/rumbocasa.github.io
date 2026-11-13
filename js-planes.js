@@ -203,7 +203,7 @@ const Planes = (() => {
     ? '<svg class="pj-cofre-svg" viewBox="0 0 48 44" aria-hidden="true"><path class="pj-cf-tapa" d="M6 10c4-8 32-8 36 0l-4 8H10z"/><rect class="pj-cf-caja" x="6" y="18" width="36" height="22" rx="4"/><path class="pj-cf-luz" d="M14 18l-4-12M24 17V3M34 18l4-12"/><rect class="pj-cf-cerr" x="21" y="22" width="6" height="8" rx="1.5"/></svg>'
     : '<svg class="pj-cofre-svg" viewBox="0 0 48 44" aria-hidden="true"><path class="pj-cf-tapa" d="M6 20c0-12 36-12 36 0z"/><rect class="pj-cf-caja" x="6" y="20" width="36" height="20" rx="4"/><path class="pj-cf-banda" d="M6 26h36"/><rect class="pj-cf-cerr" x="21" y="22" width="6" height="8" rx="1.5"/></svg>';
   const DUO = s => `<span class="pj-walker" aria-hidden="true">${Avatares.head('V', s || 30, 'happy', '', true)}${Avatares.head('D', s || 30, 'happy', '', true)}</span>`;
-  let vaultOpen = false, sheetId = null;
+  let vaultOpen = false, sheetId = null, sheetP = null;
   // v2.7 · Marcador compacto del juego: nivel + experiencia + cofres + premios (todo en íconos)
   function hudHTML() {
     const L = typeof level === 'function' ? level() : {n: 1, t: 0, next: 100};
@@ -239,11 +239,11 @@ const Planes = (() => {
       <span class="pj-dest-l"><b>${esc(g.n)}</b><span class="mono">${done ? 'Llegaron' : Math.round(pct * 100) + ' %'}</span></span>
     </button>`;
   }
-  function mapaHTML() {
-    const list = ordenRuta(S.goals), cur = list.findIndex(g => g.s < g.t), R = ruta(list.length), cielo = cieloDe(new Date().getHours());
-    const todos = [R.start, ...R.pts, R.end], hechos = [R.start, ...R.pts.slice(0, cur < 0 ? list.length : cur + 1)];
-    const fondos = S.goals.filter(g => !conTope(g));
-    return `<section class="pj-mapa cielo-${cielo}" style="--i:3;height:${R.H}px" aria-label="La ruta de sus metas">
+  // Escena del mapa (cielo según la hora, nubes, montañas y el camino). `cur` = índice del destino actual (-1 = todos logrados)
+  function escenaHTML(n, cur, label, cls, inner, next, extra) {
+    const R = ruta(n), cielo = cieloDe(new Date().getHours());
+    const todos = [R.start, ...R.pts, R.end], hechos = [R.start, ...R.pts.slice(0, cur < 0 ? n : cur + 1)];
+    return `<section class="pj-mapa ${cls} cielo-${cielo}" style="--i:3;height:${R.H}px" aria-label="${label}">
       <span class="pj-sol" aria-hidden="true"></span>
       ${cielo === 'nt' ? `<span class="pj-stars" aria-hidden="true">${Array.from({length: 14}, (_, i) => `<i style="left:${(i * 37) % 96 + 2}%;top:${(i * 53) % 70 + 4}%;--d:${(i % 5) * .4}s"></i>`).join('')}</span>` : ''}
       <span class="pj-nube" aria-hidden="true" style="top:14%"></span><span class="pj-nube b" aria-hidden="true" style="top:46%"></span>
@@ -251,10 +251,46 @@ const Planes = (() => {
       <svg class="pj-camino" viewBox="0 0 100 ${R.H}" preserveAspectRatio="none" aria-hidden="true">
         <path class="road" d="${R.path(todos)}"/><path class="hecho" d="${R.path(hechos)}"/><path class="linea" d="${R.path(todos)}"/></svg>
       <span class="pj-hoy" style="left:${R.start.x}%;top:${R.start.y}px" aria-hidden="true">${ic('home')}</span>
-      ${list.map((g, k) => destinoHTML(g, R.pts[k], k, k === cur)).join('')}
-      <button type="button" class="pj-next" data-act="newGoal" style="left:${R.end.x}%;top:${R.end.y}px" aria-label="Nueva meta: un destino nuevo">${ic('plus')}<span>Nuevo destino</span></button>
-      ${fondos.length ? `<div class="pj-alcancias" aria-label="Alcancías sin tope">${fondos.map(g => `<button type="button" class="pj-alc" data-pj-open="${esc(g.id)}" aria-label="${esc(g.n)}: ${fmt(g.s)}. Abrir">${ic(esc(g.i || 'coin'))}<span class="mono">${short(g.s)}</span></button>`).join('')}</div>` : ''}
+      ${inner(R.pts)}
+      ${next(R.end)}
+      ${extra || ''}
     </section>`;
+  }
+  function mapaHTML() {
+    const list = ordenRuta(S.goals), cur = list.findIndex(g => g.s < g.t), fondos = S.goals.filter(g => !conTope(g));
+    return escenaHTML(list.length, cur, 'La ruta de sus metas', 'metas',
+      pts => list.map((g, k) => destinoHTML(g, pts[k], k, k === cur)).join(''),
+      e => `<button type="button" class="pj-next" data-act="newGoal" style="left:${e.x}%;top:${e.y}px" aria-label="Nueva meta: un destino nuevo">${ic('plus')}<span>Nuevo destino</span></button>`,
+      fondos.length ? `<div class="pj-alcancias" aria-label="Alcancías sin tope">${fondos.map(g => `<button type="button" class="pj-alc" data-pj-open="${esc(g.id)}" aria-label="${esc(g.n)}: ${fmt(g.s)}. Abrir">${ic(esc(g.i || 'coin'))}<span class="mono">${short(g.s)}</span></button>`).join('')}</div>` : '');
+  }
+  /* --- Proyectos en el mapa: cada proyecto es una misión-destino --- */
+  // Orden: lo terminado atrás (abajo); lo abierto por fecha límite (lo más urgente primero)
+  const ordenMisiones = () => [...S.projs.filter(p => p.done), ...sortOpen(S.projs.filter(p => !p.done))];
+  function misionHTML(p, pt, k, cur) {
+    const st = stepsOf(p), pct = pctOf(p), done = !!p.done, due = dueInfo(p.due, isoOf(new Date()), done), w = ownerOf(p.w);
+    const icon = done ? 'trophy' : p.i && p.i !== 'target' ? esc(p.i) : 'target';
+    const c = w === 'V' ? ['var(--a3)', 'var(--a1)'] : w === 'D' ? ['var(--a2)', 'var(--a1)'] : ['var(--a1)', 'var(--a3)'];
+    return `<button type="button" class="pj-dest mision${done ? ' done' : ''}${cur ? ' cur' : ''}${due && due.late ? ' late' : ''}" data-pj-open-p="${esc(p.id)}" style="left:${pt.x}%;top:${pt.y}px;--k:${k};--p:${done ? 1 : pct};--c1:${c[0]};--c2:${c[1]}" aria-label="Misión ${esc(p.n)}: ${doneCount(p)} de ${st.length} pasos${done ? ', lograda' : ''}${due && due.late ? ', se pasó la fecha' : ''}. Abrir">
+      <span class="pj-dest-ring"><span class="pj-dest-in">${ic(icon)}</span>${cur ? `<span class="pj-walker" aria-hidden="true">${heads(w, 28)}</span>` : ''}${done ? `<span class="pj-badge open" aria-hidden="true">${COFRE(true)}</span>` : due && due.late ? `<span class="pj-late" aria-hidden="true">${ic('alert')}</span>` : ''}</span>
+      <span class="pj-dest-l"><b>${esc(p.n)}</b><span class="mono">${done ? 'Lograda' : st.length ? `${doneCount(p)}/${st.length} pasos` : 'Sin pasos'}</span></span>
+    </button>`;
+  }
+  function mapaProyHTML() {
+    const list = ordenMisiones(), cur = list.findIndex(p => !p.done);
+    return escenaHTML(list.length, cur, 'El mapa de sus misiones', 'misiones',
+      pts => list.map((p, k) => misionHTML(p, pts[k], k, k === cur)).join(''),
+      e => `<button type="button" class="pj-next" data-pl-new aria-expanded="${formOpen}" aria-controls="plForm" style="left:${e.x}%;top:${e.y}px" aria-label="Nueva misión">${ic('plus')}<span>Nueva misión</span></button>`);
+  }
+  // Ideas rápidas: plantillas en íconos (una toca y queda creada con sus pasos)
+  const ideasHTML = () => `<div class="pj-ideas" role="group" aria-label="Ideas para una misión nueva">${TPL.map(t => `<button type="button" class="pj-idea" data-pl-tpl="${t.k}" aria-label="Crear misión con plantilla: ${t.t}. ${t.steps.length} pasos">${ic(t.i)}<span>${t.t}</span></button>`).join('')}</div>`;
+  function hojaProyHTML() {
+    const p = sheetP && S.projs.find(x => x.id === sheetP); if (!p) return '';
+    return `<div class="pj-scrim" data-pj-close></div>
+    <div class="pj-hoja proy" role="dialog" aria-modal="true" aria-label="Misión: ${esc(p.n)}">
+      <span class="pj-hoja-asa" aria-hidden="true"></span>
+      <button type="button" class="iconbtn sm pj-hoja-x" data-pj-close aria-label="Cerrar">${ic('x')}</button>
+      ${projHTML(p, 0)}
+    </div>`;
   }
   // Hoja con el detalle de un destino: aquí sí va la información y los cofres
   function hojaHTML() {
@@ -281,14 +317,16 @@ const Planes = (() => {
   // La hoja vive en una capa propia en <body> (si no, queda debajo de la barra de abajo)
   function capa() {
     let c = document.getElementById('pjCapa');
-    if (!c) { c = document.createElement('div'); c.id = 'pjCapa'; c.setAttribute('data-pl-root', ''); c.className = 'pj-capa'; document.body.appendChild(c); c.addEventListener('click', onClick); }
+    if (!c) { c = document.createElement('div'); c.id = 'pjCapa'; c.setAttribute('data-pl-root', ''); c.className = 'pj-capa'; document.body.appendChild(c); c.addEventListener('click', onClick); c.addEventListener('submit', onSubmit); c.addEventListener('input', onInput); }
     return c;
   }
   function syncHoja(focusSel) {
-    const visible = !!sheetId && seg === 'metas' && !!rootEl() && S.goals.some(g => g.id === sheetId);
-    if (!visible) sheetId = null;
+    const vg = !!sheetId && seg === 'metas' && !!rootEl() && S.goals.some(g => g.id === sheetId);
+    const vp = !!sheetP && seg === 'proyectos' && !!rootEl() && S.projs.some(p => p.id === sheetP);
+    if (!vg) sheetId = null; if (!vp) sheetP = null;
+    const visible = vg || vp;
     const c = document.getElementById('pjCapa') || (visible ? capa() : null); if (!c) return;
-    c.innerHTML = visible ? hojaHTML() : '';
+    c.innerHTML = vg ? hojaHTML() : vp ? hojaProyHTML() : '';
     document.body.classList.toggle('pj-hoja-on', visible);
     if (visible && focusSel) { const el = c.querySelector(focusSel); if (el) el.focus({preventScroll: true}); }
   }
@@ -389,11 +427,8 @@ const Planes = (() => {
   }
   function projsHTML() {
     const has = S.projs.length > 0, open = sortOpen(S.projs.filter(p => !p.done)), fin = S.projs.filter(p => p.done);
-    return `${hudHTML()}${introHTML(has)}
-      ${formOpen ? formHTML() : ''}
-      ${open.length ? `<div class="pl-k pl-sec">${ic('clock')}En curso (${open.length})</div><div class="pl-projs">${open.map((p, i) => projHTML(p, i + 5)).join('')}</div>` : has ? `<section class="glass" style="--i:5">${empty('trophy', 'Nada en curso', 'Todo lo que empezaron, lo terminaron. Cuando quieran, arriba hay ideas para el siguiente.')}</section>` : ''}
-      ${fin.length ? `<button type="button" class="pl-fold pl-fin" data-pl-fin aria-expanded="${openFin}" aria-controls="plFin">${ic('arrow')}<span>Terminados (${fin.length})</span><b class="mono">+${fin.length * PTS} pts</b></button>
-      <div class="pl-projs pl-done" id="plFin"${openFin ? '' : ' hidden'}>${fin.map((p, i) => projHTML(p, i + 6)).join('')}</div>` : ''}`;
+    if (!has) return `${hudHTML()}${introHTML(false)}${formOpen ? formHTML() : ''}`;
+    return `${hudHTML()}${formOpen ? formHTML() : ''}${mapaProyHTML()}${ideasHTML()}`;
   }
 
   const PANES = {tareas: tasksHTML, metas: goalsHTML, proyectos: projsHTML};
@@ -441,11 +476,12 @@ const Planes = (() => {
   function repaint(focus) {
     const root = rootEl(); if (!root) return;
     root.innerHTML = inner(); swap = false; winId = null; bumpId = null;
+    syncHoja();
     const el = focus && focus(root); if (el) el.focus({preventScroll: true});
     if (typeof setupScroll === 'function') setupScroll();
-    syncHoja();
   }
-  const cardOf = (root, id) => [...root.querySelectorAll('[data-pl-proj]')].find(c => c.dataset.plProj === id) || null;
+  // La tarjeta puede estar en la vista o en la hoja de la misión (capa propia)
+  const cardOf = (root, id) => { const cap = document.getElementById('pjCapa'); return [...root.querySelectorAll('[data-pl-proj]'), ...(cap ? cap.querySelectorAll('[data-pl-proj]') : [])].find(c => c.dataset.plProj === id) || null; };
   const projOf = el => { const c = el.closest('[data-pl-proj]'); return c ? S.projs.find(p => p.id === c.dataset.plProj) || null : null; };
 
   /* ===== Acciones ===== */
@@ -465,7 +501,7 @@ const Planes = (() => {
   const inCard = (root, id, sel, alt) => { const c = cardOf(root, id); if (!c) return root.querySelector('[data-pl-new]'); const el = sel && c.querySelector(sel); return el && !el.closest('[hidden]') ? el : c.querySelector(alt || '[data-pl-steps]') || c.querySelector('.pl-del'); };
   // Tras un cambio que cierra o reabre el proyecto: re-pinta, sincroniza y avisa
   function flip(p, k, pos, focus) {
-    if (k > 0) { winId = p.id; openFin = true; }
+    if (k > 0) { winId = p.id; openFin = true; if (!p.premio) { p.premio = premioDe(p.id, 'p'); p.premioU = false; save(); } }
     repaint(focus); call('syncTag');
     if (k > 0) celebrate(p, pos); else reopened();
   }
@@ -539,14 +575,14 @@ const Planes = (() => {
     const d = readForm(form); if (!d) return;
     const steps = parseSteps(form.querySelector('#plS').value), id = newId();
     S.projs.unshift({id, n: d.n, i: 'target', w: d.w, due: d.due, why: d.why, steps, done: false});
-    resetDraft(); formOpen = false; if (steps.length) openSteps.add(id); save();
+    resetDraft(); formOpen = false; openSteps.add(id); sheetP = id; save();
     repaint(root => inCard(root, id, steps.length ? '[data-pl-next]' : '.pl-add input'));
     island({icon: 'target', color: 'a1', title: 'Proyecto creado', sub: steps.length ? `${plural(steps.length, 'paso', 'pasos')} para arrancar` : 'Escríbanle el primer paso', dur: 3200});
   }
   function useTemplate(b) {
     const t = TPL.find(x => x.k === b.dataset.plTpl); if (!t) return;
     const p = fromTemplate(t, newId());
-    S.projs.unshift(p); openSteps.add(p.id); save();
+    S.projs.unshift(p); openSteps.add(p.id); sheetP = p.id; save();
     repaint(root => inCard(root, p.id, '[data-pl-edit]'));
     island({icon: 'target', color: 'a1', title: 'Proyecto creado con sus pasos', sub: 'Cámbienle lo que quieran con Editar', action: 'Deshacer', dur: 6200, onAction: () => {
       const k = S.projs.indexOf(p); if (k >= 0) { S.projs.splice(k, 1); save(); }
@@ -590,7 +626,7 @@ const Planes = (() => {
     let b;
     if ((b = t.closest('[data-pl-seg]'))) {
       const k = b.dataset.plSeg; if (!PANES[k] || k === seg) return;
-      seg = k; swap = true; editId = null; stepEdit = null; sheetId = null; repaint(root => root.querySelector(`[data-pl-seg="${k}"]`));
+      seg = k; swap = true; editId = null; stepEdit = null; sheetId = null; sheetP = null; repaint(root => root.querySelector(`[data-pl-seg="${k}"]`));
     } else if ((b = t.closest('[data-pl-done]'))) {
       const w = b.dataset.plDone === 'D' ? 'D' : 'V', box = document.getElementById('plDone' + w);
       openDone[w] = !openDone[w]; b.setAttribute('aria-expanded', openDone[w]); if (box) box.hidden = !openDone[w];
@@ -615,7 +651,8 @@ const Planes = (() => {
     else if ((b = t.closest('[data-pl-cancel]'))) { formOpen = false; resetDraft(); repaint(root => root.querySelector('[data-pl-new]')); }
     else if ((b = t.closest('[data-pj-cofre]'))) abrir(b);
     else if ((b = t.closest('[data-pj-open]'))) { sheetId = b.dataset.pjOpen; syncHoja('.pj-hoja-x'); }
-    else if ((b = t.closest('[data-pj-close]'))) { const id = sheetId; sheetId = null; syncHoja(); if (!b.matches('[data-act]')) { const r = rootEl(), o = r && [...r.querySelectorAll('[data-pj-open]')].find(x => x.dataset.pjOpen === id); if (o) o.focus({preventScroll: true}); } }
+    else if ((b = t.closest('[data-pj-open-p]'))) { sheetP = b.dataset.pjOpenP; openSteps.add(sheetP); syncHoja('.pj-hoja-x'); }
+    else if ((b = t.closest('[data-pj-close]'))) { const id = sheetId || sheetP, k = sheetId ? 'pjOpen' : 'pjOpenP'; sheetId = null; sheetP = null; editId = null; stepEdit = null; syncHoja(); if (!b.matches('[data-act]')) { const r = rootEl(), o = r && [...r.querySelectorAll(k === 'pjOpen' ? '[data-pj-open]' : '[data-pj-open-p]')].find(x => x.dataset[k] === id); if (o) o.focus({preventScroll: true}); } }
     else if ((b = t.closest('[data-pj-vault]'))) { const box = document.getElementById('pjVault'); vaultOpen = !vaultOpen; b.setAttribute('aria-expanded', vaultOpen); if (box) box.hidden = !vaultOpen; }
     else if ((b = t.closest('[data-pj-cobrar]'))) cobrar(b);
     else if ((b = t.closest('[data-pl-w]'))) { if (b.closest('[data-pl-form]')) draft.w = ownerOf(b.dataset.plW); b.parentElement.querySelectorAll('[data-pl-w]').forEach(x => x.setAttribute('aria-pressed', x === b)); }
@@ -636,8 +673,8 @@ const Planes = (() => {
     if (bound) return; const v = viewEl(); if (!v) return;
     bound = true;
     v.addEventListener('click', onClick); v.addEventListener('submit', onSubmit); v.addEventListener('input', onInput);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId) { sheetId = null; syncHoja(); } });
-    addEventListener('hashchange', () => { if (sheetId) { sheetId = null; syncHoja(); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && (sheetId || sheetP)) { sheetId = null; sheetP = null; editId = null; stepEdit = null; syncHoja(); } });
+    addEventListener('hashchange', () => { if (sheetId || sheetP) { sheetId = null; sheetP = null; syncHoja(); } });
   }
   // Se llama tras pintar la vista: asegura los listeners (html() ya los registra si #view existe)
   function after() { bind(); restore(rootEl()); syncHoja(); }
