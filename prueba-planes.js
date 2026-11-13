@@ -224,9 +224,9 @@ const Planes = (() => {
   const cieloDe = h => h >= 5 && h < 10 ? 'am' : h >= 10 && h < 18 ? 'pm' : 'nt';
   // Coordenadas de la ruta: el primer destino abajo, el más lejano arriba. x en %, y en px.
   function ruta(n) {
-    const GAP = 150, TOP = 110, BOT = 150, H = TOP + Math.max(0, n - 1) * GAP + BOT;
+    const GAP = 150, TOP = 180, BOT = 150, H = TOP + Math.max(0, n - 1) * GAP + BOT;
     const pts = Array.from({length: n}, (_, k) => ({x: k % 2 ? 70 : 30, y: H - BOT - k * GAP + (k % 2 ? 12 : -8)}));
-    const start = {x: 50, y: H - 44}, end = {x: 50, y: 52};
+    const start = {x: 18, y: H - 44}, end = {x: 50, y: 52};
     const seg = (a, b) => `C${a.x} ${(a.y + b.y) / 2} ${b.x} ${(a.y + b.y) / 2} ${b.x} ${b.y}`;
     const path = list => list.slice(1).reduce((d, p, i) => d + ' ' + seg(list[i], p), `M${list[0].x} ${list[0].y}`);
     return {H, pts, start, end, path};
@@ -278,9 +278,23 @@ const Planes = (() => {
       <div class="pj-hoja-acts">${done ? '' : `<button type="button" class="btn acc" data-act="abono" data-id="${esc(g.id)}" data-a="100000">${ic('plus')}$100.000</button>`}<button type="button" class="btn pri" data-act="plan" data-id="${esc(g.id)}" data-pj-close>${ic('spark')}Planear</button></div>
     </div>`;
   }
+  // La hoja vive en una capa propia en <body> (si no, queda debajo de la barra de abajo)
+  function capa() {
+    let c = document.getElementById('pjCapa');
+    if (!c) { c = document.createElement('div'); c.id = 'pjCapa'; c.setAttribute('data-pl-root', ''); c.className = 'pj-capa'; document.body.appendChild(c); c.addEventListener('click', onClick); }
+    return c;
+  }
+  function syncHoja(focusSel) {
+    const visible = !!sheetId && seg === 'metas' && !!rootEl() && S.goals.some(g => g.id === sheetId);
+    if (!visible) sheetId = null;
+    const c = document.getElementById('pjCapa') || (visible ? capa() : null); if (!c) return;
+    c.innerHTML = visible ? hojaHTML() : '';
+    document.body.classList.toggle('pj-hoja-on', visible);
+    if (visible && focusSel) { const el = c.querySelector(focusSel); if (el) el.focus({preventScroll: true}); }
+  }
   function goalsHTML() {
     if (!S.goals.length) return `${hudHTML()}<section class="glass" style="--i:3">${empty('target', 'Aún no tienen metas', 'Cada meta es un destino en su ruta. Creen la primera y, cada vez que abonen, avanzan y abren cofres con premios.')}<div class="pl-bar"><button type="button" class="btn acc pl-cta" data-act="newGoal">${ic('plus')}Nueva meta</button></div></section>`;
-    return `${hudHTML()}${mapaHTML()}${hojaHTML()}`;
+    return `${hudHTML()}${mapaHTML()}`;
   }
 
 
@@ -429,6 +443,7 @@ const Planes = (() => {
     root.innerHTML = inner(); swap = false; winId = null; bumpId = null;
     const el = focus && focus(root); if (el) el.focus({preventScroll: true});
     if (typeof setupScroll === 'function') setupScroll();
+    syncHoja();
   }
   const cardOf = (root, id) => [...root.querySelectorAll('[data-pl-proj]')].find(c => c.dataset.plProj === id) || null;
   const projOf = el => { const c = el.closest('[data-pl-proj]'); return c ? S.projs.find(p => p.id === c.dataset.plProj) || null : null; };
@@ -554,7 +569,7 @@ const Planes = (() => {
     S.pts.V = (+S.pts.V || 0) + r.pts; S.pts.D = (+S.pts.D || 0) + r.pts;
     let nl = []; try { if (typeof checkBadges === 'function') nl = checkBadges() || []; } catch (e) {}
     save(); b.classList.add('pj-pop');
-    setTimeout(() => { repaint(root => root.querySelector(`[data-pj-cofre]`) || root.querySelector('.pj-isla')); call('syncTag'); }, typeof T === 'function' ? T(420) : 420);
+    setTimeout(() => { repaint(); call('syncTag'); const c = document.getElementById('pjCapa'), f = c && (c.querySelector('[data-pj-cofre]') || c.querySelector('.pj-hoja-x')); if (f) f.focus({preventScroll: true}); }, typeof T === 'function' ? T(420) : 420);
     confetti(pos[0], pos[1], s === 100 ? 140 : 80);
     island({icon: 'gift', color: 'gold', title: `¡Cofre del ${s} % abierto! +${r.pts} pts para cada uno`, sub: `Premio: ${r.c.p}`, dur: 6400});
     cheer('logro');
@@ -599,8 +614,8 @@ const Planes = (() => {
     else if ((b = t.closest('[data-pl-new]'))) { formOpen = !formOpen; repaint(root => formOpen ? root.querySelector('#plN') : root.querySelector('[data-pl-new]')); }
     else if ((b = t.closest('[data-pl-cancel]'))) { formOpen = false; resetDraft(); repaint(root => root.querySelector('[data-pl-new]')); }
     else if ((b = t.closest('[data-pj-cofre]'))) abrir(b);
-    else if ((b = t.closest('[data-pj-open]'))) { sheetId = b.dataset.pjOpen; repaint(root => root.querySelector('.pj-hoja-x')); }
-    else if ((b = t.closest('[data-pj-close]'))) { const id = sheetId; sheetId = null; if (!b.matches('[data-act]')) repaint(root => [...root.querySelectorAll('[data-pj-open]')].find(x => x.dataset.pjOpen === id)); }
+    else if ((b = t.closest('[data-pj-open]'))) { sheetId = b.dataset.pjOpen; syncHoja('.pj-hoja-x'); }
+    else if ((b = t.closest('[data-pj-close]'))) { const id = sheetId; sheetId = null; syncHoja(); if (!b.matches('[data-act]')) { const r = rootEl(), o = r && [...r.querySelectorAll('[data-pj-open]')].find(x => x.dataset.pjOpen === id); if (o) o.focus({preventScroll: true}); } }
     else if ((b = t.closest('[data-pj-vault]'))) { const box = document.getElementById('pjVault'); vaultOpen = !vaultOpen; b.setAttribute('aria-expanded', vaultOpen); if (box) box.hidden = !vaultOpen; }
     else if ((b = t.closest('[data-pj-cobrar]'))) cobrar(b);
     else if ((b = t.closest('[data-pl-w]'))) { if (b.closest('[data-pl-form]')) draft.w = ownerOf(b.dataset.plW); b.parentElement.querySelectorAll('[data-pl-w]').forEach(x => x.setAttribute('aria-pressed', x === b)); }
@@ -621,10 +636,11 @@ const Planes = (() => {
     if (bound) return; const v = viewEl(); if (!v) return;
     bound = true;
     v.addEventListener('click', onClick); v.addEventListener('submit', onSubmit); v.addEventListener('input', onInput);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId && rootEl()) { const id = sheetId; sheetId = null; repaint(root => [...root.querySelectorAll('[data-pj-open]')].find(x => x.dataset.pjOpen === id)); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId) { sheetId = null; syncHoja(); } });
+    addEventListener('hashchange', () => { if (sheetId) { sheetId = null; syncHoja(); } });
   }
   // Se llama tras pintar la vista: asegura los listeners (html() ya los registra si #view existe)
-  function after() { bind(); restore(rootEl()); }
+  function after() { bind(); restore(rootEl()); syncHoja(); }
 
   return {html, after, listos, pure: {complete, pctOf, reward, settle, parseSteps, splitTasks, weekStats, goalThread, isDue, daysLeft, dueInfo, nextIdx, sortOpen, reassign, fromTemplate, paradas, abrirCofre, premioDe, ordenRuta, premiosDe, nivelDe, dificultad}};
 })();

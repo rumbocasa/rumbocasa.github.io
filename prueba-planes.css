@@ -304,7 +304,7 @@ textarea.pl-inp{resize:vertical;min-height:92px;display:block}
 .pj-cf-luz{stroke:var(--gold);stroke-width:3;stroke-linecap:round;fill:none;animation:pjRays 1.6s ease-in-out infinite}
 
 /* El mapa: escena de cielo con montañas, nubes y el camino que sube */
-.pj-mapa{position:relative;max-width:520px;margin:0 auto;border-radius:32px;overflow:hidden;isolation:isolate;box-shadow:0 24px 50px -24px rgba(60,20,40,.45),inset 0 1px 0 rgba(255,255,255,.4);animation:pjIn .7s cubic-bezier(.2,1.1,.3,1) both;
+.pj-mapa{position:relative;width:100%;max-width:520px;margin:0 auto;box-sizing:border-box;border-radius:32px;overflow:hidden;isolation:isolate;box-shadow:0 24px 50px -24px rgba(60,20,40,.45),inset 0 1px 0 rgba(255,255,255,.4);animation:pjIn .7s cubic-bezier(.2,1.1,.3,1) both;
   --sky:linear-gradient(180deg,#4B2A7B 0%,#C2477A 40%,#F59A5B 75%,#FCC77D 100%);--sun:#FFD27A;--m1:#7A3A72;--m2:#4A2050;--road:rgba(255,255,255,.5);--txt:#fff}
 .pj-mapa.cielo-am{--sky:linear-gradient(180deg,#7FA7D9 0%,#F4B7A6 55%,#FCE3C4 100%);--sun:#FFE9B8;--m1:#7D8EB5;--m2:#55648F}
 .pj-mapa.cielo-nt{--sky:linear-gradient(180deg,#0B1030 0%,#1E2160 55%,#3B2E7A 100%);--sun:#E9E6FF;--m1:#22205A;--m2:#13123A;--road:rgba(255,255,255,.32)}
@@ -340,7 +340,7 @@ textarea.pl-inp{resize:vertical;min-height:92px;display:block}
 .pj-badge{position:absolute;right:-8px;top:-8px;width:36px;padding:3px;border-radius:12px;background:#FFE3A3;color:#B07A45;box-shadow:0 0 0 2px #fff,0 0 18px 4px rgba(255,210,122,.8);animation:pjBounce 1.2s ease-in-out infinite}
 .pj-next{position:absolute;translate:-50% -50%;display:flex;align-items:center;gap:6px;min-height:46px;padding:0 16px 0 12px;border-radius:999px;border:1.5px dashed rgba(255,255,255,.8);background:rgba(255,255,255,.18);backdrop-filter:blur(10px);color:#fff;font:700 13.5px/1 var(--ui,inherit);cursor:pointer}
 .pj-next .i{width:20px;height:20px}
-.pj-alcancias{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 90px)}
+.pj-alcancias{position:absolute;right:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 100px)}
 .pj-alc{display:flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 8px;border-radius:999px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.2);backdrop-filter:blur(10px);color:#fff;font:700 12.5px var(--ui,inherit);cursor:pointer}
 .pj-alc .i{width:18px;height:18px}
 
@@ -399,3 +399,8 @@ textarea.pl-inp{resize:vertical;min-height:92px;display:block}
 @keyframes pjDraw{to{stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){.pj-hud,.pj-lvl-n,.pj-mapa,.pj-dest,.pj-dest.cur .pj-dest-ring,.pj-walker,.pj-badge,.pj-nube,.pj-stars i,.pj-chest.ready,.pj-cf-luz,.pj-hoja,.pj-quest.fin .pj-qchest,.pj-pill-b.hot>.i{animation:none!important}.pj-camino .hecho{stroke-dashoffset:0;animation:none}}
 @media (max-width:380px){.pj-dest-ring{width:68px;height:68px}.pj-dest-in .i{width:26px;height:26px}.pj-dest-l{max-width:104px}}
+/* La hoja va en su propia capa, encima de la barra de abajo y del chat */
+.pj-capa:empty{display:none}
+.pj-capa .pj-scrim{z-index:95}.pj-capa .pj-hoja{z-index:96}
+body.pj-hoja-on .cht-fab{opacity:0;pointer-events:none}
+body.pj-hoja-on{overflow:hidden}
