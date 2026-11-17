@@ -1,0 +1,24 @@
+# Rumbo · Robot de avisos: corre gratis cada 15 minutos y manda los avisos push a los iPhone.
+name: Avisos de Rumbo
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: avisos
+  cancel-in-progress: false
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-audit --no-fund firebase-admin@12.7.0 web-push@3.6.7
+      - run: node robot-avisos.mjs
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          VAPID_PUBLIC: BCVno__JGakkM1yGRPgeXgsyucIlhFGp5H09nT4Smsu52hnlYG0FHMXXo7jHKbNR482bG4apeT75f6D6IS4-Y3c
