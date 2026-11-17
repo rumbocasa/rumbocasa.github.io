@@ -22,6 +22,12 @@ const Apuntes = (function () {
   // Ícono propio: burbuja de chat con la huella de Coral y Oreo
   const ICONO = `<svg class="cht-ico" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4C9 4 3.5 8.6 3.5 14.4c0 3.2 1.7 6.1 4.4 8l-1.2 4.8 5.3-2.8c1.3.4 2.6.5 4 .5 7 0 12.5-4.6 12.5-10.4S23 4 16 4z" fill="currentColor"/><g fill="var(--ch-paw,#fff)"><ellipse cx="16" cy="16.6" rx="3.6" ry="3"/><circle cx="11.6" cy="12.6" r="1.6"/><circle cx="14.4" cy="10.6" r="1.6"/><circle cx="17.6" cy="10.6" r="1.6"/><circle cx="20.4" cy="12.6" r="1.6"/></g></svg>`;
   let filtro = 'todo', busca = '', urls = new Map(), abierto = false, vistos = 0;
+  // v3.2 · Dos chats: 'casa' (solo Vale y David) y 'a' (privado con el asistente: Coral para Vale, Oreo para David)
+  const CANAL = 'hogar:v1:chat-canal';
+  let canal = (() => { try { return localStorage.getItem(CANAL) === 'a' ? 'a' : 'casa'; } catch (e) { return 'casa'; } })();
+  const asis = () => (typeof Asistente === 'object' ? Asistente.perro(S.profile) : 'Coral');
+  const enCanal = n => canal === 'a' ? n.c === 'a' && n.para === S.profile : n.c !== 'a' && n.by !== 'bot';
+  const RAPIDOS = ['Dame un consejo', '¿Cuánto nos queda?', 'Mis recordatorios', 'Pagos pendientes', 'Ayuda'];
 
   /* ===== Clasificación y acciones ===== */
   const ctx = () => ({cats: S.cats, hoy: new Date()});
@@ -63,6 +69,61 @@ const Apuntes = (function () {
       save(); pintar(); render(false); island({icon: 'target', color: 'a2', title: 'Nuevo proyecto', sub: pj.n, action: 'Ver', dur: 4200, onAction: () => { cerrar(); location.hash = '#tareas'; }});
     } else if (act === 'topes') { cerrar(); if (typeof Cuentas === 'object') Cuentas.open('topes'); }
   }
+  /* ===== Tarjetas del asistente: lo que creó, con botones para deshacer o ajustar ===== */
+  function cardHTML(n) {
+    const c = n.card; if (!c) return '';
+    const b = (op, t, i, extra) => `<button class="cht-act" data-ch="card" data-op="${op}" data-id="${esc(n.id)}"${extra || ''}>${ic(i)}${t}</button>`;
+    const hecho = t => `<span class="cht-done">${ic('ok')}${t}</span>`;
+    if (c.x) return `<span class="cht-done mu">${ic('undo')}Deshecho</span>`;
+    if (c.tipo === 'recordatorio') {
+      const r = (S.recordatorios || []).find(x => x.id === c.ref); if (!r) return hecho('Quitado');
+      return `<div class="cht-card"><span class="cht-card-i k-rec">${ic('bell')}</span><span class="cht-card-tx"><b>${esc(r.t)}</b><small>${esc(Asistente.cuandoTxt(r.at, new Date()))}${r.hecho ? ' · hecho' : r.avisado ? ' · ya te avisé' : ''}</small></span></div>
+        <div class="cht-acts">${r.hecho ? '' : b('recHecho', 'Ya está', 'ok')}${b('recMas1', '+1 hora', 'clock')}${b('deshacer', 'Deshacer', 'undo')}</div>`;
+    }
+    if (c.tipo === 'tarea') {
+      const tk = S.tasks.find(x => x.id === c.ref); if (!tk) return hecho('Tarea quitada');
+      const r = c.rec && (S.recordatorios || []).find(x => x.id === c.rec), o = tk.w === 'D' ? 'V' : 'D';
+      return `<div class="cht-card"><span class="cht-card-i k-tarea">${ic(tk.done ? 'ok' : 'check')}</span><span class="cht-card-tx"><b>${esc(tk.n)}</b><small>${esc(tk.when)} · para ${nom(tk.w)} · +${tk.p} pts${r ? ' · aviso ' + esc(Asistente.cuandoTxt(r.at, new Date())) : ''}</small></span></div>
+        <div class="cht-acts">${tk.done ? hecho('Hecha') : b('tareaHecha', 'Ya la hice', 'ok') + (r ? '' : b('tareaRec', 'Recuérdamela', 'bell')) + b('tareaOtro', 'Para ' + nom(o), 'user')}${b('deshacer', 'Deshacer', 'undo')}</div>`;
+    }
+    if (c.tipo === 'gasto') return `<div class="cht-acts">${b('deshacer', 'Deshacer el gasto', 'undo')}</div>`;
+    if (c.tipo === 'abonar') return `<div class="cht-acts">${b('abonar', 'Abonar ' + fmt(c.a), 'trend')}</div>`;
+    if (c.tipo === 'consejo') return `<div class="cht-acts">${b('otroConsejo', 'Otro consejo', 'bulb')}</div>`;
+    if (c.tipo === 'idea') return `<div class="cht-acts">${b('aProyecto', 'Volverla proyecto', 'target')}${b('aTarea', 'Volverla tarea', 'check')}</div>`;
+    if (c.tipo === 'pedirHora') return `<div class="cht-acts">${b('hora', 'En 1 hora', 'clock', ' data-cuando="en 1 hora"')}${b('hora', 'Hoy 6 p. m.', 'clock', ' data-cuando="hoy a las 6 pm"')}${b('hora', 'Mañana 8 a. m.', 'clock', ' data-cuando="mañana a las 8 am"')}</div>`;
+    if (c.tipo === 'preguntarTipo') return `<div class="cht-acts">${b('esTarea', 'Tarea', 'check')}${b('esRec', 'Recordatorio', 'bell')}${b('esGasto', 'Gasto', 'wallet')}${b('esIdea', 'Idea', 'bulb')}</div>`;
+    return '';
+  }
+  // Responde como el asistente: guarda el mensaje del asistente con su tarjeta
+  function responderAsis(texto, deNota) {
+    const r = Asistente.ejecutar(texto, S, S.profile, new Date(), deNota ? deNota.id : '');
+    const card = r.card ? {...r.card} : null; if (card && deNota && !card.ref) card.ref = deNota.id;
+    if (card && card.tipo === 'pedirHora') card.t = card.t || '';
+    S.notas.push({id: uid('n'), t: r.texto, k: 'respuesta', at: new Date(Date.now() + 1).toISOString(), by: 'bot', att: [], hecho: false, fav: false, c: 'a', para: S.profile, ...(card ? {card} : {})});
+  }
+  function accionCard(op, n, btn) {
+    const c = n.card || {}, padre = S.notas.find(x => x.id === c.ref) || null;
+    if (op === 'deshacer') {
+      if (c.tipo === 'recordatorio') { const i = (S.recordatorios || []).findIndex(x => x.id === c.ref); if (i >= 0) S.recordatorios.splice(i, 1); }
+      if (c.tipo === 'tarea') { const i = S.tasks.findIndex(x => x.id === c.ref); if (i >= 0) S.tasks.splice(i, 1); const j = (S.recordatorios || []).findIndex(x => x.id === c.rec); if (j >= 0) S.recordatorios.splice(j, 1); }
+      if (c.tipo === 'gasto') { const i = +c.ref, mv = S.moves[i]; if (mv && mv.a === c.a) S.moves.splice(i, 1); else { const k = S.moves.map(m => m.a).lastIndexOf(c.a); if (k >= 0) S.moves.splice(k, 1); } }
+      c.x = true;
+    } else if (op === 'recHecho') { const r = S.recordatorios.find(x => x.id === c.ref); if (r) r.hecho = true; }
+    else if (op === 'recMas1') { const r = S.recordatorios.find(x => x.id === c.ref); if (r) { r.at = new Date(Math.max(Date.now(), new Date(r.at).getTime()) + 3600e3).toISOString(); r.avisado = false; r.hecho = false; } }
+    else if (op === 'tareaHecha') { const tk = S.tasks.find(x => x.id === c.ref); if (tk && !tk.done) { doAct('task', tk.id, btn); } const r = c.rec && S.recordatorios.find(x => x.id === c.rec); if (r) r.hecho = true; }
+    else if (op === 'tareaOtro') { const tk = S.tasks.find(x => x.id === c.ref); if (tk) tk.w = tk.w === 'D' ? 'V' : 'D'; const r = c.rec && S.recordatorios.find(x => x.id === c.rec); if (r && tk) r.para = tk.w; }
+    else if (op === 'tareaRec') { const tk = S.tasks.find(x => x.id === c.ref); if (tk) { const at = Asistente.pure.cuando('hoy', new Date()), r = {id: uid('r'), t: tk.n, at: at.toISOString(), para: tk.w, hecho: false, avisado: false, de: '', tarea: tk.id}; S.recordatorios.push(r); c.rec = r.id; } }
+    else if (op === 'abonar') { doAct('abono', c.ref, btn, c.a); c.tipo = 'hecho'; }
+    else if (op === 'otroConsejo') { responderAsis('dame otro consejo' + ' '.repeat(1 + Math.floor(Math.random() * 9))); }
+    else if (op === 'aProyecto' && padre) { convertir('proyecto', padre); c.x = false; c.tipo = 'hecho'; }
+    else if (op === 'aTarea' && padre) { responderAsis('hay que ' + padre.t, padre); c.tipo = 'hecho'; }
+    else if (op === 'hora') { responderAsis(`recuérdame ${c.t || (padre && padre.t) || ''} ${btn.dataset.cuando}`, padre); c.tipo = 'hecho'; }
+    else if (op === 'esTarea' && padre) { responderAsis('hay que ' + padre.t, padre); c.tipo = 'hecho'; }
+    else if (op === 'esRec' && padre) { responderAsis('recuérdame ' + padre.t, padre); c.tipo = 'hecho'; }
+    else if (op === 'esGasto') { cerrar(); if (typeof openSheet === 'function') openSheet('gasto'); }
+    else if (op === 'esIdea' && padre) { padre.k = 'idea'; c.tipo = 'hecho'; }
+    save(); pintar(); render(false);
+  }
   const convTxt = n => ({tarea: 'Ya es tarea', gasto: 'Gasto registrado', abono: 'Abonado a la meta', paso: 'Está en el plan de la meta', proyecto: 'Ya es proyecto'})[n.conv.tipo] || 'Listo';
 
   /* ===== Mensajes ===== */
@@ -74,41 +135,42 @@ const Apuntes = (function () {
     return `<div class="${cls}" data-att="${esc(a.id)}">${ic('doc')}<span><b>${esc(a.nombre)}</b><small>${kb(a.size)}</small></span>${u ? `<a class="cht-dl" href="${u}" download="${esc(a.nombre)}" aria-label="Descargar">${ic('arrow')}</a>` : ''}</div>`;
   }
   function msgHTML(n, prev) {
-    const bot = n.by === 'bot', mine = !bot && n.by === S.profile, [ki, , kn] = K[n.k] || K.nota, c = !bot && n.k !== 'pregunta' ? info(n) : null;
+    const bot = n.by === 'bot', mine = !bot && n.by === S.profile, [ki, , kn] = K[n.k] || K.nota, c = !bot && n.k !== 'pregunta' && n.c !== 'a' && false ? info(n) : null;
     const seguido = prev && prev.by === n.by && (new Date(n.at) - new Date(prev.at)) < 5 * 60000;
     const who = bot ? Avatares.dogSVG(dogOf(S.profile), 'happy', 30) : Avatares.head(n.by, 30, 'happy', '', true);
     const meta = c ? [c.monto && n.k === 'gasto' ? fmt(c.monto) : '', c.fecha ? c.fecha.toLocaleDateString('es-CO', {weekday: 'short', day: 'numeric'}) : '', n.k === 'tarea' && c.quien === 'D' ? 'para David' : n.k === 'tarea' && c.quien === 'V' ? 'para Vale' : ''].filter(Boolean).join(' · ') : '';
-    const etiqueta = bot ? `<span class="cht-who">${S.profile === 'D' ? 'Oreo' : 'Coral'}</span>` : !mine && !seguido ? `<span class="cht-who">${nom(n.by)}</span>` : '';
-    const tipo = !bot && n.k !== 'nota' ? `<span class="cht-kind k-${n.k}">${ic(ki)}${kn}${meta ? ' · ' + esc(meta) : ''}</span>` : '';
+    const etiqueta = bot ? `<span class="cht-who">${asis()}</span>` : !mine && !seguido ? `<span class="cht-who">${nom(n.by)}</span>` : '';
+    const tipo = '';
     return `<div class="cht-msg ${bot ? 'bot' : mine ? 'mine' : 'theirs'} ${n.by === 'D' ? 'd' : n.by === 'V' ? 'v' : ''}${seguido ? ' seguido' : ''}" data-nid="${esc(n.id)}">
       <span class="cht-av">${seguido ? '' : who}</span>
       <div class="cht-bub">${etiqueta}${tipo}
         ${n.t ? `<p class="cht-tx">${esc(n.t).replace(/\n/g, '<br>')}</p>` : ''}
         ${(n.att || []).length ? `<div class="cht-atts">${n.att.map(attHTML).join('')}</div>` : ''}
         ${n.cargando ? `<span class="cht-up"><span class="cu-spin" aria-hidden="true"></span>Guardando…</span>` : ''}
-        ${n.conv ? `<span class="cht-done">${ic('ok')}${convTxt(n)}</span>` : acciones(n)}
+        ${n.c === 'a' && bot ? cardHTML(n) : n.conv ? `<span class="cht-done">${ic('ok')}${convTxt(n)}</span>` : ''}
         <div class="cht-foot"><time>${hora(n.at)}</time>
           ${n.t ? `<button class="cht-i" data-ch="copiar" data-id="${esc(n.id)}" aria-label="Copiar mensaje" title="Copiar">${ic('copy')}</button>` : ''}
           ${bot ? '' : `<button class="cht-i${n.fav ? ' on' : ''}" data-ch="fav" data-id="${esc(n.id)}" aria-pressed="${!!n.fav}" aria-label="Guardar" title="Guardar">${ic('star')}</button>`}
           ${bot || mine ? `<button class="cht-i" data-ch="mas" data-id="${esc(n.id)}" aria-label="Más opciones" title="Más">${ic('sliders')}</button>` : ''}
         </div>
-        ${!bot && mine ? `<div class="cht-more" hidden><label>Es un(a) <select data-ch-k="${esc(n.id)}">${Object.keys(K).filter(k => k !== 'respuesta').map(k => `<option value="${k}"${k === n.k ? ' selected' : ''}>${K[k][2]}</option>`).join('')}</select></label><button class="cht-act del" data-ch="del" data-id="${esc(n.id)}">${ic('trash')}Borrar</button></div>` : bot ? `<div class="cht-more" hidden><button class="cht-act del" data-ch="del" data-id="${esc(n.id)}">${ic('trash')}Borrar</button></div>` : ''}
+        ${!bot && mine ? `<div class="cht-more" hidden><button class="cht-act del" data-ch="del" data-id="${esc(n.id)}">${ic('trash')}Borrar</button></div>` : bot ? `<div class="cht-more" hidden><button class="cht-act del" data-ch="del" data-id="${esc(n.id)}">${ic('trash')}Borrar</button></div>` : ''}
       </div></div>`;
   }
-  const cuenta = k => (S.notas || []).filter(n => k === 'todo' ? n.by !== 'bot' : k === 'fav' ? n.fav : k === 'archivos' ? (n.att || []).length : n.k === k).length;
+  const cuenta = k => (S.notas || []).filter(enCanal).filter(n => k === 'todo' ? true : k === 'fav' ? n.fav : k === 'archivos' ? (n.att || []).length : n.k === k).length;
   function lista() {
     const q2 = Aprende.pure.quitar(busca);
-    const ns = (S.notas || []).filter(n => (filtro === 'todo' || (filtro === 'fav' ? n.fav : filtro === 'archivos' ? (n.att || []).length : n.k === filtro)) && (!q2 || Aprende.pure.quitar(n.t).includes(q2)));
-    if (!ns.length) return (S.notas || []).length ? `<p class="cht-empty">Nada por aquí con ese filtro.</p>` : bienvenida();
+    const ns = (S.notas || []).filter(enCanal).filter(n => (filtro === 'todo' || (filtro === 'fav' ? n.fav : filtro === 'archivos' ? (n.att || []).length : n.k === filtro)) && (!q2 || Aprende.pure.quitar(n.t).includes(q2)));
+    if (!ns.length) return (S.notas || []).filter(enCanal).length ? `<p class="cht-empty">Nada por aquí con ese filtro.</p>` : bienvenida();
     let last = '', h = '', prev = null;
     ns.forEach(n => { const d = diaLbl(n.at); if (d !== last) { h += `<div class="cht-day"><span>${esc(d)}</span></div>`; last = d; prev = null; } h += msgHTML(n, prev); prev = n; });
     return h;
   }
   function bienvenida() {
-    const dog = S.profile === 'D' ? 'Oreo' : 'Coral';
+    if (canal === 'casa') return `<div class="cht-hello"><span class="cht-hello-dog">${Avatares.head(otro(), 64, 'happy', '', true)}</span>
+      <b>Solo tú y ${nom(otro())}</b><p>Este chat es solo de ustedes dos: mensajes, fotos, notas de voz y videos. Cuando ${nom(otro())} te escriba, te llega un aviso al celular.</p></div>`;
     return `<div class="cht-hello"><span class="cht-hello-dog">${Avatares.dogSVG(dogOf(S.profile), 'happy', 64)}</span>
-      <b>El chat de la casa</b><p>Escríbanse aquí, tú y ${nom(otro())}. ${dog} ordena lo que digan: tareas, gastos, ideas y planes se convierten con un toque. Y si preguntan, responde con sus números.</p>
-      <div class="cht-ej">${EJEMPLOS.map(e => `<button data-ch="ej" data-t="${esc(e)}">${esc(e)}</button>`).join('')}</div></div>`;
+      <b>Hola, soy ${asis()}</b><p>Tu asistente privada. Escríbeme como a una amiga y yo lo ordeno: tareas, recordatorios con aviso, gastos y consejos con sus números reales. Si no tengo un dato, te lo digo; nunca invento.</p>
+      <div class="cht-ej">${['Necesito comprar leche para hoy', 'Recuérdame pagar el internet mañana a las 8', 'Gasté 45 mil en el cine', 'Dame un consejo para ahorrar'].map(e => `<button data-ch="ej" data-t="${esc(e)}">${esc(e)}</button>`).join('')}</div></div>`;
   }
 
   /* ===== Burbuja y panel ===== */
@@ -122,13 +184,15 @@ const Apuntes = (function () {
     pnl = document.createElement('section'); pnl.className = 'cht-panel'; pnl.id = 'chPanel'; pnl.hidden = true;
     pnl.setAttribute('role', 'dialog'); pnl.setAttribute('aria-modal', 'true'); pnl.setAttribute('aria-labelledby', 'chT');
     pnl.innerHTML = `<header class="cht-hd"><span class="cht-duo">${Avatares.head('V', 34, 'happy', '', true)}${Avatares.head('D', 34, 'happy', '', true)}</span>
-        <div class="cht-ht"><h2 id="chT">Chat de la casa</h2><span>Vale y David · Coral y Oreo ordenan</span></div>
+        <div class="cht-ht"><h2 id="chT">Chat</h2><span id="chSub"></span></div>
         <button class="cht-i" data-ch="buscar" aria-label="Buscar y filtrar" aria-expanded="false" title="Buscar y filtrar">${ic('sliders')}</button>
         <button class="cht-i" data-ch="cerrar" aria-label="Cerrar el chat" title="Cerrar">${ic('x')}</button></header>
+      <div class="cht-tabs" role="tablist" aria-label="Escoger chat"><button role="tab" data-ch="canal" data-c="casa" id="chTabCasa"></button><button role="tab" data-ch="canal" data-c="a" id="chTabA"></button></div>
       <div class="cht-tools" id="chTools" hidden><label class="cht-search">${ic('info')}<input type="search" id="chBusca" placeholder="Buscar en el chat" autocomplete="off"></label>
         <div class="cht-filtros" role="group" aria-label="Filtrar">${FILTROS.map(([k, t]) => `<button data-ch-f="${k}" aria-pressed="${filtro === k}">${t}<b>0</b></button>`).join('')}</div></div>
       <div class="cht-list" id="chList" aria-live="polite"></div>
       <div class="cht-comp">
+        <div class="cht-quick" id="chQuick" hidden>${RAPIDOS.map(t => `<button data-ch="rapido" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <div class="cht-pend" id="chPend" hidden></div>
         <div class="cht-recbar" id="chRec" hidden><span class="cht-dot"></span><b id="chRecT">0:00</b><span class="cht-wave" aria-hidden="true">${'<i></i>'.repeat(14)}</span><button class="cht-i" data-chc="recCancel" aria-label="Cancelar grabación">${ic('x')}</button><button class="cht-send" data-chc="recStop" aria-label="Terminar y adjuntar">${ic('ok')}</button></div>
         <div class="cht-row" id="chRow">
@@ -160,8 +224,7 @@ const Apuntes = (function () {
     // Despeja los avisos en pantalla (pago próximo, perritos) para que la atención quede en el chat
     try { Voces.callar(); } catch (e) {} try { if (typeof cheerOff === 'function') cheerOff(); } catch (e) {}
     scrim.hidden = false; pnl.hidden = false; fab.setAttribute('aria-expanded', 'true'); fab.classList.add('open'); document.body.classList.add('cht-on');
-    q('#chTx').placeholder = `Escríbele a ${nom(otro())}…`;
-    pintar(true); marcarVisto();
+    pintarCanal(); pintar(true); marcarVisto();
     setTimeout(() => { if (matchMedia('(hover:hover)').matches) q('#chTx').focus({preventScroll: true}); }, 80);
   }
   function cerrar() {
@@ -169,6 +232,16 @@ const Apuntes = (function () {
     pnl.classList.add('saliendo'); scrim.classList.add('saliendo'); fab.classList.remove('open'); fab.setAttribute('aria-expanded', 'false'); document.body.classList.remove('cht-on');
     setTimeout(() => { if (abierto) return; pnl.hidden = true; scrim.hidden = true; pnl.classList.remove('saliendo'); scrim.classList.remove('saliendo'); }, T(260));
     q('#chMenu').hidden = true; badge();
+  }
+  function pintarCanal() {
+    const casa = canal === 'casa';
+    q('#chTabCasa').innerHTML = `${Avatares.head(otro(), 22, 'happy', '', true)}<span>${nom(otro())}</span><b class="cht-tab-n" hidden></b>`;
+    q('#chTabA').innerHTML = `${Avatares.dogSVG(dogOf(S.profile), 'happy', 22)}<span>${asis()} · asistente</span>`;
+    q('#chTabCasa').setAttribute('aria-selected', String(casa)); q('#chTabA').setAttribute('aria-selected', String(!casa));
+    q('#chSub').textContent = casa ? `Solo tú y ${nom(otro())}` : 'Privado: solo lo ves tú';
+    q('#chTx').placeholder = casa ? `Escríbele a ${nom(otro())}…` : `Escríbele a ${asis()}: tarea, recordatorio, gasto…`;
+    q('#chQuick').hidden = casa;
+    pnl.classList.toggle('es-asis', !casa);
   }
   const abajo = () => { const l = q('#chList'); requestAnimationFrame(() => { l.scrollTop = l.scrollHeight; }); };
   function pintar(alFondo) {
@@ -181,10 +254,11 @@ const Apuntes = (function () {
   }
   // No leídos: mensajes del otro desde la última vez que se abrió el chat en este aparato
   const visto = () => { try { return localStorage.getItem(VISTO) || ''; } catch (e) { return ''; } };
-  function marcarVisto() { try { localStorage.setItem(VISTO, new Date().toISOString()); } catch (e) {} badge(); }
+  function marcarVisto() { if (canal === 'casa') { try { localStorage.setItem(VISTO, new Date().toISOString()); } catch (e) {} } badge(); }
   function badge() {
     if (!fab) return;
-    const v = visto(), n = abierto ? 0 : (S.notas || []).filter(x => x.by === otro() && x.at > v).length, b = fab.querySelector('.cht-badge');
+    const v = visto(), n = abierto && canal === 'casa' ? 0 : (S.notas || []).filter(x => x.by === otro() && x.c !== 'a' && x.at > v).length, b = fab.querySelector('.cht-badge');
+    if (pnl) { const tn = pnl.querySelector('.cht-tab-n'); if (tn) { tn.hidden = !n || canal === 'casa'; tn.textContent = n > 9 ? '9+' : n; } }
     b.hidden = !n; b.textContent = n > 9 ? '9+' : n;
     if (n > vistos) { fab.classList.remove('ping'); void fab.offsetWidth; fab.classList.add('ping'); }
     vistos = n; fab.setAttribute('aria-label', n ? `Abrir el chat de la casa: ${n} ${n === 1 ? 'mensaje nuevo' : 'mensajes nuevos'} de ${nom(otro())}` : 'Abrir el chat de la casa');
@@ -204,12 +278,12 @@ const Apuntes = (function () {
   async function enviar(texto, adjuntos) {
     texto = String(texto || '').trim(); adjuntos = adjuntos || [];
     if (!texto && !adjuntos.length) return;
-    const c = texto ? Aprende.clasificar(texto, ctx()) : {tipo: 'nota'};
-    const n = {id: uid('n'), t: texto.slice(0, 1000), k: adjuntos.length && !texto ? 'nota' : c.tipo, at: new Date().toISOString(), by: S.profile, att: [], hecho: false, fav: false, cargando: adjuntos.length};
+    const aCoral = canal === 'a';
+    const n = {id: uid('n'), t: texto.slice(0, 1000), k: 'nota', at: new Date().toISOString(), by: S.profile, att: [], hecho: false, fav: false, cargando: adjuntos.length, ...(aCoral ? {c: 'a', para: S.profile} : {})};
     S.notas = S.notas || []; S.notas.push(n);
-    if (n.k === 'pregunta') { const r = Aprende.responder(texto, S, new Date()); S.notas.push({id: uid('n'), t: r.texto, k: 'respuesta', at: new Date(Date.now() + 1).toISOString(), by: 'bot', att: [], hecho: false, fav: false}); }
-    if (S.notas.length > 400) S.notas.splice(0, S.notas.length - 400);
-    save(); filtro = 'todo'; pintar(true);
+    if (aCoral && texto && typeof Asistente === 'object') { try { responderAsis(texto, n); } catch (e) { console.error('Rumbo · Asistente:', e); S.notas.push({id: uid('n'), t: 'Se me enredó eso. ¿Me lo escribes de otra forma?', k: 'respuesta', at: new Date(Date.now() + 1).toISOString(), by: 'bot', att: [], hecho: false, fav: false, c: 'a', para: S.profile}); } }
+    if (S.notas.length > 600) S.notas.splice(0, S.notas.length - 600);
+    save(); filtro = 'todo'; pintar(true); if (aCoral) render(false);
     if (!adjuntos.length) return;
     for (const a of adjuntos) {
       const id = uid('na');
@@ -339,8 +413,11 @@ const Apuntes = (function () {
     if (k === 'cerrar') return cerrar();
     if (k === 'buscar') { const t = q('#chTools'); t.hidden = !t.hidden; b.setAttribute('aria-expanded', String(!t.hidden)); if (!t.hidden) q('#chBusca').focus(); else if (busca || filtro !== 'todo') { busca = ''; filtro = 'todo'; q('#chBusca').value = ''; pnl.querySelectorAll('[data-ch-f]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.chF === 'todo'))); pintar(true); } return; }
     if (k === 'ej') { const tx = q('#chTx'); tx.value = b.dataset.t; tx.focus(); tx.dispatchEvent(new Event('input', {bubbles: true})); return; }
+    if (k === 'canal') { const nc = b.dataset.c === 'a' ? 'a' : 'casa'; if (nc === canal) return; canal = nc; try { localStorage.setItem(CANAL, canal); } catch (e) {} filtro = 'todo'; pintarCanal(); pintar(true); marcarVisto(); return; }
+    if (k === 'rapido') { enviar(b.dataset.t, []); return; }
     if (k === 'ver') { const u = urls.get(b.dataset.att); if (u) verFoto(u); return; }
     const n = (S.notas || []).find(x => x.id === b.dataset.id); if (!n) return;
+    if (k === 'card') return accionCard(b.dataset.op, n, b);
     if (k === 'copiar') copiar(n.t);
     else if (k === 'fav') { n.fav = !n.fav; save(); pintar(); }
     else if (k === 'mas') { const m = b.closest('.cht-bub').querySelector('.cht-more'); if (m) m.hidden = !m.hidden; }

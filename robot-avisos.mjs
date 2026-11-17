@@ -22,7 +22,7 @@ function ahora() {
   return {iso: `${g('year')}-${g('month')}-${g('day')}`, d: +g('day'), h: +g('hour')};
 }
 
-async function main() {
+async function vuelta() {
   const snap = await casa.get(); if (!snap.exists || !snap.data().json) { console.log('Sin casa todavía'); return; }
   const raw = JSON.parse(snap.data().json), S = raw.data || raw;
   const estRef = casa.collection('robot').doc('estado'), est = (await estRef.get()).data() || {};
@@ -44,10 +44,10 @@ async function main() {
     const t = dd === 1 ? `Mañana vence ${p.n}` : dd === 0 ? `Hoy vence ${p.n}` : dd < 0 ? `${p.n} está vencido` : null;
     if (t) avisos.push({para: 'A', title: t, body: `${fmt(p.a)} · Páguenlo desde Rumbo y guarden el comprobante.`, url: APP + '#finanzas', key: `pago:${p.id}:${H.iso}`, tag: `pago-${p.id}`});
   }
-  // 2. Chat: lo que escribe uno le llega al otro
+  // 2. Chat de la pareja (no el privado con el asistente): lo que escribe uno le llega al otro
   let ultimo = chatDesde;
   for (const n of S.notas || []) {
-    if ((n.by !== 'V' && n.by !== 'D') || !n.at || n.at <= chatDesde) continue;
+    if ((n.by !== 'V' && n.by !== 'D') || n.c === 'a' || !n.at || n.at <= chatDesde) continue;
     if (n.at > ultimo) ultimo = n.at;
     if (primeraVez) continue; // la primera vez no se manda lo viejo
     const txt = String(n.t || '').trim();
@@ -59,6 +59,15 @@ async function main() {
     const abiertos = new Set((g.cofres || []).map(c => +c.s));
     for (const s of [25, 50, 75, 100]) if (g.s / g.t >= s / 100 && !abiertos.has(s))
       avisos.push({para: 'A', title: '¡Hay un cofre listo!', body: `${g.n} llegó al ${s} %. Ábranlo en Planes › Metas y vean su premio.`, url: APP + '#tareas', key: `cofre:${g.id}:${s}`, tag: `cofre-${g.id}`});
+  }
+
+  // 4. Recordatorios del asistente (Coral para Vale, Oreo para David), a su hora
+  const ahoraMs = Date.now();
+  for (const r of S.recordatorios || []) {
+    if (r.hecho || r.avisado || !r.at) continue;
+    const t = new Date(r.at).getTime();
+    if (t > ahoraMs + 60e3 || ahoraMs - t > 6 * 3600e3) continue;
+    avisos.push({para: r.para === 'D' || r.para === 'V' ? r.para : 'A', title: `${r.para === 'D' ? 'Oreo' : 'Coral'} te recuerda`, body: r.t, url: APP + '#apuntes', key: `rec:${r.id}:${r.at}`, tag: `rec-${r.id}`});
   }
 
   let n = 0;
@@ -80,4 +89,14 @@ async function main() {
   await estRef.set({enviados, chatDesde: ultimo, corrida: new Date().toISOString(), avisos: avisos.length, enviadosAhora: n});
   console.log(`Avisos: ${avisos.length} posibles · ${n} enviados · ${subs.length} celulares`);
 }
-main().catch(e => { console.error(e); process.exit(1); });
+// Cada corrida (GitHub la lanza más o menos cada hora) se queda ~52 minutos revisando cada 2 minutos:
+// así los recordatorios llegan a su hora y los mensajes del chat en pocos minutos.
+async function main() {
+  const fin = Date.now() + (process.env.PRUEBA === 'si' ? 0 : 52 * 60e3);
+  do {
+    try { await vuelta(); } catch (e) { console.error('Vuelta con error:', e.message || e); }
+    if (Date.now() + 120e3 >= fin) break;
+    await new Promise(r => setTimeout(r, 120e3));
+  } while (Date.now() < fin);
+}
+main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

@@ -59,10 +59,10 @@ function buildReal(D, ref) {
 const LEGACY_CATS = [['arriendo', 'Arriendo', 'home', 'a1'], ['mercado', 'Mercado', 'cart', 'a2'], ['servicios', 'Servicios', 'bolt', 'gd'], ['transporte', 'Transporte', 'car', 'a3'], ['citas', 'Citas y ocio', 'cup', 'al'], ['casa', 'Casa y aseo', 'spark', 'a2'], ['salud', 'Salud y cuidado', 'pulse', 'al'], ['subs', 'Suscripciones', 'play', 'a3'], ['ahorro', 'Ahorro e inversión', 'trend', 'ok'], ['imprevistos', 'Imprevistos', 'shield', 'mu']].map(([id, n, i, t]) => ({id, n, i, t, b: 0, ...(id === 'ahorro' ? {saving: true} : {})}));
 
 // Estado: arranca con los datos reales y `load()` lo reemplaza por lo guardado
-const S = {...buildReal(DATOS_REALES, now), profile: 'V', last: null, mon: null, hist: [], props: [], projs: [], debts: [], recibos: [], notas: [], diario: [], aprendeDesde: null, aprendeAviso: false, people: {V: null, D: null}, faceId: false, compas: true};
+const S = {...buildReal(DATOS_REALES, now), profile: 'V', last: null, mon: null, hist: [], props: [], projs: [], debts: [], recibos: [], notas: [], diario: [], recordatorios: [], aprendeDesde: null, aprendeAviso: false, people: {V: null, D: null}, faceId: false, compas: true};
 
 // Guardado: un solo objeto versionado en localStorage (v2 = categorías completas; v1 = anterior, se migra al leer)
-const KEY = 'hogar:v1', SCHEMA = 2, LISTS = ['pays', 'moves', 'goals', 'tasks', 'badges', 'notifs', 'props', 'projs', 'debts', 'recibos', 'notas', 'diario'];
+const KEY = 'hogar:v1', SCHEMA = 2, LISTS = ['pays', 'moves', 'goals', 'tasks', 'badges', 'notifs', 'props', 'projs', 'debts', 'recibos', 'notas', 'diario', 'recordatorios'];
 // Texto libre escrito por ellos (propuestas): siempre escapado antes de pintarlo
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 const PROP_PTS = [10, 15, 20];
@@ -156,10 +156,15 @@ function sanitize(raw) {
   // Proyectos de la casa: pasos con casilla; `w` = V, D o A (ambos)
   out.projs = objs(d.projs).filter(p => typeof p.id === 'string' && typeof p.n === 'string' && p.n.trim()).map(p => ({id: p.id, n: p.n.trim().slice(0, 60), i: str(p.i, 'target'), w: ['V', 'D', 'A'].includes(p.w) ? p.w : 'A', due: str(p.due, ''), why: str(p.why, '').trim().slice(0, 120), done: !!p.done, steps: objs(p.steps).filter(s => typeof s.n === 'string' && s.n.trim()).map(s => ({n: s.n.trim().slice(0, 80), done: !!s.done})).slice(0, 20), ...(typeof p.premio === 'string' && p.premio.trim() ? {premio: p.premio.trim().slice(0, 80), premioU: !!p.premioU} : {})}));
   // v2.0 · Apuntes (chat) y foto diaria de Rumbo aprende
-  const NOTA_K = ['tarea', 'gasto', 'idea', 'plan', 'meta', 'ajuste', 'pregunta', 'nota', 'respuesta'], ATT_T = ['img', 'audio', 'video', 'file'];
+  const NOTA_K = ['tarea', 'gasto', 'idea', 'plan', 'meta', 'ajuste', 'pregunta', 'nota', 'respuesta', 'recordatorio', 'consejo'], ATT_T = ['img', 'audio', 'video', 'file'];
   out.notas = objs(d.notas).filter(n => typeof n.id === 'string' && typeof n.t === 'string').map(n => ({id: n.id.slice(0, 40), t: n.t.slice(0, 1000), k: NOTA_K.includes(n.k) ? n.k : 'nota', at: str(n.at, ''), by: n.by === 'D' ? 'D' : n.by === 'bot' ? 'bot' : 'V',
     att: objs(n.att).filter(a => REC_RE.test(a.id)).map(a => ({id: a.id, tipo: ATT_T.includes(a.tipo) ? a.tipo : 'file', nombre: str(a.nombre, 'archivo').slice(0, 80), size: Math.max(0, int(a.size)), dur: Math.max(0, int(a.dur)), nube: a.nube === true})).slice(0, 8),
-    ...(isObj(n.conv) && typeof n.conv.tipo === 'string' ? {conv: {tipo: n.conv.tipo.slice(0, 12), id: str(n.conv.id, '').slice(0, 40)}} : {}), hecho: !!n.hecho, fav: !!n.fav})).slice(-400);
+    ...(isObj(n.conv) && typeof n.conv.tipo === 'string' ? {conv: {tipo: n.conv.tipo.slice(0, 12), id: str(n.conv.id, '').slice(0, 40)}} : {}), hecho: !!n.hecho, fav: !!n.fav,
+    // v3.2 · Canal: sin `c` = chat de la pareja; c:'a' = chat privado con el asistente de `para`
+    ...(n.c === 'a' ? {c: 'a', para: n.para === 'D' ? 'D' : 'V'} : {}),
+    ...(isObj(n.card) && typeof n.card.tipo === 'string' ? {card: {tipo: n.card.tipo.slice(0, 16), ref: str(n.card.ref, '').slice(0, 40), rec: str(n.card.rec, '').slice(0, 40), a: Math.max(0, int(n.card.a)), t: str(n.card.t, '').slice(0, 80), x: !!n.card.x}} : {})})).slice(-600);
+  // v3.2 · Recordatorios del asistente (los avisa la app abierta o el robot de GitHub)
+  out.recordatorios = objs(d.recordatorios).filter(r => typeof r.id === 'string' && typeof r.t === 'string' && !isNaN(new Date(r.at))).map(r => ({id: r.id.slice(0, 40), t: r.t.slice(0, 100), at: new Date(r.at).toISOString(), para: ['V', 'D', 'A'].includes(r.para) ? r.para : 'V', hecho: !!r.hecho, avisado: !!r.avisado, de: str(r.de, '').slice(0, 40), ...(typeof r.tarea === 'string' ? {tarea: r.tarea.slice(0, 40)} : {})})).slice(-200);
   out.diario = objs(d.diario).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.f)).map(x => ({f: x.f, out: int(x.out), sv: int(x.sv), pend: int(x.pend), td: int(x.td), tt: int(x.tt), notas: int(x.notas), pV: int(x.pV), pD: int(x.pD), racha: int(x.racha)})).slice(-400);
   out.aprendeDesde = /^\d{4}-\d{2}-\d{2}$/.test(d.aprendeDesde) ? d.aprendeDesde : null;
   out.aprendeAviso = d.aprendeAviso === true;
@@ -1050,6 +1055,7 @@ async function enterApp() {
     Voces.afterLogin({title: autoTitle(au.names.length), detail: listNames(au.names)}, ctx);
   } else Voces.afterLogin(null, ctx);
   // v2.0 · Primer mes de datos: avisa una vez que ya hay base para afinar la app con el desarrollador
+  try { if (typeof Asistente === 'object') Asistente.vigilar(); } catch (e) { console.error('Rumbo · Asistente:', e); }
   try { const ap = Aprende.diario(S, new Date()); if (ap.mesListo) { S.aprendeAviso = true; save(); setTimeout(() => island({icon: 'spark', color: 'gold', title: 'Ya hay un mes de datos', sub: 'Rumbo aprendió de su casa: pídanle al desarrollador que actualice Firebase y GitHub', action: 'Ver', dur: 9000, onAction: () => { setTimeout(() => { openSettings(); aprendeStep(); }, 60); }}), T(9000)); } } catch (e) { console.error('Rumbo · Aprende:', e); }
 };
 
