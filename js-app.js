@@ -818,6 +818,25 @@ async function activarAvisos() {
     ok('Avisos activados', 'Les llegan aunque Rumbo esté cerrado');
   } catch (e) { console.error('Rumbo · avisos:', e); no('No se pudieron activar', e && e.message ? e.message.slice(0, 80) : 'Intenten otra vez'); }
 }
+// v3.3 · Llave del buzón automático: la pegan una vez (viene con los atajos de Siri y del banco)
+function autoLlave() {
+  document.querySelectorAll('.auto-llave').forEach(x => x.remove());
+  const ov = document.createElement('div'); ov.className = 'auto-llave scrim'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+  ov.innerHTML = `<form class="sheet" style="max-width:440px"><h3 style="margin:4px 0 6px">${ic('bolt')} Rumbo automático</h3>
+    <p class="muted" style="margin:0 0 12px;font-size:14px">${S.buzonTok ? 'Ya está activado. Si les dieron una llave nueva, péguenla aquí.' : 'Peguen la llave del buzón que viene con los atajos de Siri y del banco. Se hace una sola vez y queda para los dos.'}</p>
+    <input class="pl-inp" name="k" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pegar la llave aquí" aria-label="Llave del buzón" style="width:100%;font-family:var(--mono)">
+    <small class="pl-err" role="alert" style="display:block;min-height:18px"></small>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button type="button" class="btn ghost" data-x>Cerrar</button><button type="submit" class="btn acc">${ic('ok')}Guardar</button></div></form>`;
+  document.body.appendChild(ov);
+  const f = ov.querySelector('form'), inp = f.querySelector('input'); setTimeout(() => inp.focus(), 60);
+  ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-x]')) ov.remove(); });
+  f.addEventListener('submit', e => {
+    e.preventDefault(); const k = inp.value.trim().toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(k)) { f.querySelector('.pl-err').textContent = 'Esa llave no se ve bien: son 32 letras y números.'; inp.focus(); return; }
+    S.buzonTok = k; save(); if (typeof Nube === 'object' && Nube.push) Nube.push(true); ov.remove();
+    island({icon: 'bolt', color: 'gold', title: 'Rumbo automático activado', sub: 'Ya pueden usar «Oye Siri, Rumbo» y el atajo del banco', dur: 5200});
+  });
+}
 const setRow = (id, icon, tn, t, sub) => `<button class="set-row" id="${id}">${tile(icon, tn)}<span class="set-tx"><b>${t}</b><small>${sub}</small></span>${ic('arrow', 'set-ch')}</button>`;
 const setSwitch = (id, icon, t, sub, on) => `<button class="set-row" id="${id}" role="switch" aria-checked="${on}">${tile(icon, on ? 'ok' : 'mu')}<span class="set-tx"><b>${t}</b><small>${sub}</small></span><i class="sw" aria-hidden="true"></i></button>`;
 function settingsStep(confirm, keep) {
@@ -915,11 +934,7 @@ setBody.addEventListener('click', e => {
   else if (id === 'setNube') { closeSettings(); Nube.salir().then(() => { gateResume = ''; showGate(); }); }
   else if (id === 'setInstall') { closeSettings(); installApp(); }
   else if (id === 'setPush') { closeSettings(); activarAvisos(); }
-  else if (id === 'setAuto') {
-    closeSettings();
-    if (!S.buzonTok) { const a = new Uint8Array(16); crypto.getRandomValues(a); S.buzonTok = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save(); }
-    island({icon: 'bolt', color: 'gold', title: 'Rumbo automático activado', sub: 'Pidan los atajos de Siri y del banco al desarrollador (se instalan una vez)', dur: 6000});
-  }
+  else if (id === 'setAuto') { closeSettings(); autoLlave(); }
   else if (id === 'setWidget') {
     closeSettings();
     if (!S.widgetTok) { const a = new Uint8Array(16); crypto.getRandomValues(a); S.widgetTok = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save(); }
