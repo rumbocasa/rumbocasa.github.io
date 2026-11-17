@@ -11,11 +11,11 @@ on:
         default: false
 concurrency:
   group: avisos
-  cancel-in-progress: false
+  cancel-in-progress: false  # si llega otra corrida mientras esta sigue, espera su turno
 jobs:
   avisar:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
