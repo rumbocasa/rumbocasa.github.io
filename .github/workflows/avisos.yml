@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      prueba:
+        description: 'Mandar un aviso de prueba a todos los celulares'
+        type: boolean
+        default: false
 concurrency:
   group: avisos
   cancel-in-progress: false
@@ -21,4 +26,5 @@ jobs:
         env:
           FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          PRUEBA: ${{ inputs.prueba && 'si' || '' }}
           VAPID_PUBLIC: BCVno__JGakkM1yGRPgeXgsyucIlhFGp5H09nT4Smsu52hnlYG0FHMXXo7jHKbNR482bG4apeT75f6D6IS4-Y3c
