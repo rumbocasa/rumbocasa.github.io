@@ -29,6 +29,12 @@ async function main() {
   const enviados = est.enviados || {}, primeraVez = !est.chatDesde;
   const chatDesde = est.chatDesde || new Date().toISOString();
   const subs = (await casa.collection('push').get()).docs.map(d => ({id: d.id, ...d.data()}));
+  // Prueba manual (botón «Run workflow» con «prueba» marcado): un aviso a todos los celulares, sin tocar nada más
+  if (process.env.PRUEBA === 'si') {
+    let ok = 0;
+    for (const s of subs) { try { await webpush.sendNotification(s.sub, JSON.stringify({title: 'Rumbo · prueba de avisos', body: `Hola ${NOMBRE[s.perfil] || ''}: si ves esto, los avisos funcionan.`, url: APP, tag: 'prueba'}), {TTL: 3600}); ok++; } catch (e) { console.log('Falló', s.id, e.statusCode || e.message); } }
+    console.log(`Prueba: ${ok} de ${subs.length} celulares`); return;
+  }
   const H = ahora(), avisos = [];
 
   // 1. Pagos: mañana, hoy y vencidos (entre 8 a. m. y 9 p. m., uno por día y por pago)
