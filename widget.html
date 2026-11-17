@@ -19,7 +19,7 @@ h1 span{color:var(--a3)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px;margin-bottom:14px;backdrop-filter:blur(18px)}
 ol{margin:0;padding-left:22px}li{margin:8px 0}
 b.k{display:inline-block;padding:1px 8px;border-radius:8px;background:#0000000F}
-button{width:100%;min-height:54px;border:0;border-radius:18px;background:var(--a1);color:#fff;font:700 17px inherit;font-family:inherit;cursor:pointer}
+button:disabled{background:#8a7d76}button{width:100%;min-height:54px;border:0;border-radius:18px;background:var(--a1);color:#fff;font:700 17px inherit;font-family:inherit;cursor:pointer}
 button.ok{background:#2E8B6A}
 a{color:var(--a3);font-weight:700}
 textarea{width:100%;height:120px;margin-top:12px;border-radius:14px;border:1px solid var(--line);padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;background:#00000008;color:var(--fg)}
@@ -43,9 +43,9 @@ textarea{width:100%;height:120px;margin-top:12px;border-radius:14px;border:1px s
       <li>Instalen la app gratuita <a href="https://apps.apple.com/app/scriptable/id1405459188">Scriptable</a>.</li>
       <li>Ábranla, toquen <b class="k">+</b> arriba a la derecha y peguen el código.</li>
       <li>Toquen el título del script y llámenlo <b>Rumbo</b>.</li>
-      <li>Toquen <b class="k">▶</b> abajo: entren con su correo y contraseña de Rumbo. Se ve una vista previa.</li>
+      <li>Toquen <b class="k">▶</b> abajo para ver cómo queda. No pide contraseña.</li>
     </ol>
-    <p class="nota">¿Entran a Rumbo con Google? Primero creen una contraseña: en Rumbo, «Olvidé mi contraseña» con su Gmail. Les llega un correo para crearla.</p>
+    <p class="nota">¿Ya tenían el widget viejo? Abran el script «Rumbo» en Scriptable, borren todo y peguen el nuevo.</p>
   </section>
 
   <section class="card">
@@ -61,7 +61,11 @@ textarea{width:100%;height:120px;margin-top:12px;border-radius:14px;border:1px s
 </main>
 <script>
   const t = document.getElementById('codigo'), b = document.getElementById('copiar');
-  fetch('widget-rumbo.js', {cache: 'no-cache'}).then(r => r.text()).then(s => { t.value = s; }).catch(() => { t.value = 'No se pudo cargar el código. Revisen el internet y recarguen.'; });
+  // El enlace secreto llega desde Rumbo (Ajustes › Widget) en la dirección: widget.html#t=…
+  const tok = (location.hash.match(/t=([a-f0-9]{32})/) || [])[1] || '';
+  if (!tok) { b.disabled = true; b.textContent = 'Abran esta página desde Rumbo › Ajustes › Widget'; t.value = 'Para que el widget sea solo de ustedes, esta página se abre desde Rumbo: Ajustes › «Widget en la pantalla de inicio».'; }
+  else fetch('widget-rumbo.js', {cache: 'no-cache'}).then(r => r.text()).then(s => { t.value = s.replace('__TOKEN__', tok); }).catch(() => { t.value = 'No se pudo cargar el código. Revisen el internet y recarguen.'; });
+  history.replaceState(null, '', location.pathname); // que el enlace secreto no quede a la vista
   b.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(t.value); } catch (e) { t.focus(); t.select(); document.execCommand('copy'); }
     b.textContent = 'Copiado: ahora péguenlo en Scriptable'; b.classList.add('ok');

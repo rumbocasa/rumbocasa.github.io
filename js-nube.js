@@ -109,13 +109,15 @@ const Nube = (function () {
     }, e => console.warn('Rumbo · Nube:', e));
   }
   // save() llama aquí después de guardar en este navegador
-  function push() { if (!ACTIVO || !listo || !ref) return; clearTimeout(pt); pt = setTimeout(subir, 700); }
+  function push(forzar) { if (!ACTIVO || !listo || !ref) return; if (forzar === true) lastJson = ''; clearTimeout(pt); pt = setTimeout(subir, 700); }
   function subir() {
     pt = 0; if (!listo || !ref) return;
     let json = null; try { json = localStorage.getItem(KEY); } catch (e) {}
     if (!json || json === lastJson) return;
     lastJson = json; rev = uid();
     let resumen = null; try { if (typeof resumenCasa === 'function') resumen = resumenCasa(); } catch (e) {}
+    // v3.1 · Copia del resumen en el enlace secreto del widget (solo se puede leer conociendo el enlace)
+    if (resumen && S.widgetTok) ref.collection('widget').doc(S.widgetTok).set({resumen, at: firebase.firestore.FieldValue.serverTimestamp()}).catch(e => console.warn('Rumbo · widget:', e));
     ref.set({json, rev, by: perfil, email: user ? user.email : '', at: firebase.firestore.FieldValue.serverTimestamp(), ...(resumen ? {resumen} : {})}).catch(e => {
       console.warn('Rumbo · Nube:', e); lastJson = '';
       if (Date.now() - errAviso > 30000) { errAviso = Date.now(); island({icon: 'alert', color: 'alert', title: 'No se pudo subir a la nube', sub: 'Queda guardado aquí; se reintenta con el próximo cambio', dur: 4200}); }

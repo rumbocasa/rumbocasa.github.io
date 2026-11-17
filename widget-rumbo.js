@@ -1,39 +1,19 @@
-// Rumbo · Widget para iPhone (app gratuita Scriptable).
-// Muestra lo disponible del mes, el próximo pago, la meta que sigue, la racha y los cofres.
-// Al tocarlo abre Rumbo. Parámetro del widget (opcional): "chat", "metas" o "plata" para abrir esa parte.
-// La primera vez, ábranlo dentro de Scriptable (▶) para entrar con su correo y contraseña de Rumbo.
+// Rumbo · Widget para iPhone (app gratuita Scriptable). v3.1: sin contraseña.
+// Lee el resumen de la casa desde su enlace secreto y lo muestra con los colores de Rumbo.
+// Tamaños: pequeño, mediano y grande. Al tocarlo abre Rumbo.
+// Parámetro del widget (opcional): "chat", "metas" o "plata" para abrir esa parte.
+const TOKEN = '__TOKEN__';
+const API_KEY = 'AIzaSyCryL2V5_gyrj16zzzSfzoENVZaOpnqIEs', PROYECTO = 'rumbo-24d13', CASA = 'rumbo', APP = 'https://rumbocasa.github.io/';
+const CACHE = 'rumbo.widget.cache';
 
-const API_KEY = 'AIzaSyCryL2V5_gyrj16zzzSfzoENVZaOpnqIEs'; // clave web de Firebase (no es secreta; la protegen las reglas)
-const PROYECTO = 'rumbo-24d13', CASA = 'rumbo', APP = 'https://rumbocasa.github.io/';
-const K = {mail: 'rumbo.mail', refresh: 'rumbo.refresh', cache: 'rumbo.cache'};
-const C = {fondo1: new Color('#FFE7CC'), fondo2: new Color('#F9C6D6'), tinta: new Color('#1B100B'), suave: new Color('#4A3F38'), marron: new Color('#7A2E1E'), rosa: new Color('#C2477A'), verde: new Color('#2E8B6A'), oro: new Color('#E8A93A')};
-const fmt = n => '$' + Math.round(+n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const hora = new Date().getHours(), noche = hora >= 19 || hora < 6;
+const T = noche
+  ? {f1: '#1E2160', f2: '#5B2A6E', tinta: '#FFFFFF', suave: '#E6DDF5', card: new Color('#FFFFFF', 0.14), acento: '#FFD27A', verde: '#7FE0B0', rosa: '#FF9AB0', pista: new Color('#FFFFFF', 0.22)}
+  : {f1: '#FFE7CC', f2: '#F7BFD0', tinta: '#1B100B', suave: '#5A4A42', card: new Color('#FFFFFF', 0.62), acento: '#9A3F1E', verde: '#2E8B6A', rosa: '#C2477A', pista: new Color('#000000', 0.08)};
+const col = c => typeof c === 'string' ? new Color(c) : c;
+const fmt = n => (n < 0 ? '−$' : '$') + Math.round(Math.abs(+n || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const corto = n => { n = +n || 0; return n >= 1e6 ? '$' + (n / 1e6).toFixed(1).replace('.', ',').replace(',0', '') + 'M' : n >= 1e3 ? '$' + Math.round(n / 1e3) + 'k' : fmt(n); };
 
-async function post(url, body) {
-  const r = new Request(url); r.method = 'POST'; r.headers = {'Content-Type': 'application/json'}; r.body = JSON.stringify(body);
-  const j = await r.loadJSON(); if (j.error) throw new Error(j.error.message || 'Error de Firebase'); return j;
-}
-async function entrar() {
-  const a = new Alert(); a.title = 'Rumbo'; a.message = 'Entren con el correo y la contraseña de Rumbo (si entran con Google, primero creen una contraseña con «Olvidé mi contraseña» en Rumbo).';
-  a.addTextField('Correo', Keychain.contains(K.mail) ? Keychain.get(K.mail) : ''); a.addSecureTextField('Contraseña', '');
-  a.addAction('Entrar'); a.addCancelAction('Cancelar');
-  if (await a.presentAlert() < 0) throw new Error('Cancelado');
-  const email = a.textFieldValue(0).trim(), password = a.textFieldValue(1);
-  const j = await post(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`, {email, password, returnSecureToken: true});
-  Keychain.set(K.mail, email); Keychain.set(K.refresh, j.refreshToken);
-  return j.idToken;
-}
-async function token() {
-  if (!Keychain.contains(K.refresh)) { if (config.runsInWidget) throw new Error('Abran el widget en Scriptable para entrar'); return entrar(); }
-  try {
-    const r = new Request(`https://securetoken.googleapis.com/v1/token?key=${API_KEY}`); r.method = 'POST';
-    r.headers = {'Content-Type': 'application/x-www-form-urlencoded'}; r.body = 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(Keychain.get(K.refresh));
-    const j = await r.loadJSON(); if (j.error) throw new Error(j.error.message);
-    Keychain.set(K.refresh, j.refresh_token); return j.id_token;
-  } catch (e) { Keychain.remove(K.refresh); if (config.runsInWidget) throw e; return entrar(); }
-}
-// Firestore REST devuelve valores tipados: los convertimos a JS normal
 function val(v) {
   if (!v) return null;
   if ('stringValue' in v) return v.stringValue; if ('integerValue' in v) return +v.integerValue; if ('doubleValue' in v) return v.doubleValue;
@@ -43,67 +23,103 @@ function val(v) {
   return null;
 }
 async function datos() {
+  if (!/^[a-f0-9]{32}$/.test(TOKEN)) throw new Error('Copien el widget desde Rumbo › Ajustes › Widget');
   try {
-    const t = await token(), r = new Request(`https://firestore.googleapis.com/v1/projects/${PROYECTO}/databases/(default)/documents/hogares/${CASA}`);
-    r.headers = {Authorization: 'Bearer ' + t};
-    const j = await r.loadJSON(); if (j.error) throw new Error(j.error.message);
+    const r = new Request(`https://firestore.googleapis.com/v1/projects/${PROYECTO}/databases/(default)/documents/hogares/${CASA}/widget/${TOKEN}?key=${API_KEY}`);
+    r.timeoutInterval = 15;
+    const j = await r.loadJSON(); if (j.error) throw new Error(j.error.status === 'NOT_FOUND' ? 'Abran Rumbo una vez para preparar el widget' : j.error.message);
     const res = val(j.fields && j.fields.resumen); if (!res) throw new Error('Abran Rumbo una vez para preparar el widget');
-    Keychain.set(K.cache, JSON.stringify(res)); return {res, viejo: false};
+    Keychain.set(CACHE, JSON.stringify(res)); return {res, viejo: false};
   } catch (e) {
-    if (Keychain.contains(K.cache)) return {res: JSON.parse(Keychain.get(K.cache)), viejo: true, error: e.message};
+    if (Keychain.contains(CACHE)) return {res: JSON.parse(Keychain.get(CACHE)), viejo: true};
     throw e;
   }
 }
-function texto(st, s, size, color, peso) { const t = st.addText(s); t.font = peso === 'b' ? Font.boldRoundedSystemFont(size) : peso === 'h' ? Font.heavyRoundedSystemFont(size) : Font.mediumRoundedSystemFont(size); t.textColor = color || C.tinta; t.lineLimit = 1; t.minimumScaleFactor = 0.6; return t; }
-function barra(st, pct, ancho, color) {
-  const dc = new DrawContext(); dc.size = new Size(ancho, 8); dc.opaque = false; dc.respectScreenScale = true;
-  const fondo = new Path(); fondo.addRoundedRect(new Rect(0, 0, ancho, 8), 4, 4); dc.addPath(fondo); dc.setFillColor(new Color('#000000', 0.08)); dc.fillPath();
-  const w = Math.max(8, ancho * Math.min(1, pct / 100)), p = new Path(); p.addRoundedRect(new Rect(0, 0, w, 8), 4, 4); dc.addPath(p); dc.setFillColor(color); dc.fillPath();
-  const img = st.addImage(dc.getImage()); img.imageSize = new Size(ancho, 8);
+
+// --- piezas de diseño ---
+function txt(st, s, size, color, peso, lineas) {
+  const t = st.addText(String(s)); t.textColor = col(color || T.tinta); t.lineLimit = lineas || 1; t.minimumScaleFactor = 0.55;
+  t.font = peso === 'h' ? Font.heavyRoundedSystemFont(size) : peso === 'b' ? Font.boldRoundedSystemFont(size) : Font.mediumRoundedSystemFont(size);
+  return t;
+}
+function icono(st, nombre, size, color) { const s = SFSymbol.named(nombre); if (!s) return; s.applyFont(Font.boldSystemFont(size)); const i = st.addImage(s.image); i.imageSize = new Size(size, size); i.tintColor = col(color); return i; }
+function barra(st, pct, ancho, color, alto) {
+  alto = alto || 6; const dc = new DrawContext(); dc.size = new Size(ancho, alto); dc.opaque = false; dc.respectScreenScale = true;
+  const p0 = new Path(); p0.addRoundedRect(new Rect(0, 0, ancho, alto), alto / 2, alto / 2); dc.addPath(p0); dc.setFillColor(T.pista); dc.fillPath();
+  const w = Math.max(alto, ancho * Math.max(0, Math.min(1, pct))); const p1 = new Path(); p1.addRoundedRect(new Rect(0, 0, w, alto), alto / 2, alto / 2); dc.addPath(p1); dc.setFillColor(col(color)); dc.fillPath();
+  const im = st.addImage(dc.getImage()); im.imageSize = new Size(ancho, alto); return im;
+}
+function tarjeta(st, pad) { const c = st.addStack(); c.layoutVertically(); c.backgroundColor = T.card; c.cornerRadius = 16; c.setPadding(pad || 9, 11, pad || 9, 11); return c; }
+function cabecera(w, res) {
+  const top = w.addStack(); top.centerAlignContent();
+  txt(top, 'Rumb', 14, T.acento, 'h'); icono(top, 'heart.fill', 11, T.rosa);
+  top.addSpacer();
+  if (res.racha) { icono(top, 'flame.fill', 12, '#F07A2E'); top.addSpacer(2); txt(top, res.racha, 12, T.tinta, 'b'); }
+}
+function disponible(st, res, grande) {
+  txt(st, 'Disponible · ' + (res.mes || 'este mes'), 11, T.suave, 'b');
+  txt(st, fmt(res.disp), grande ? 34 : 26, res.disp < 0 ? '#D93B3B' : T.tinta, 'h');
+  st.addSpacer(4);
+  const usado = res.ingreso > 0 ? res.gastado / res.ingreso : 0;
+  barra(st, usado, grande ? 132 : 120, usado > 0.95 ? T.rosa : T.verde, 6);
+  st.addSpacer(3);
+  txt(st, `${Math.round(usado * 100)} % usado · quedan ${res.dias} días`, 10, T.suave);
 }
 function crear({res, viejo}) {
-  const w = new ListWidget(), fam = config.widgetFamily || 'medium', p = (args.widgetParameter || '').toLowerCase();
-  const g = new LinearGradient(); g.colors = [C.fondo1, C.fondo2]; g.locations = [0, 1]; g.startPoint = new Point(0, 0); g.endPoint = new Point(1, 1); w.backgroundGradient = g;
-  w.setPadding(14, 16, 14, 16);
-  w.url = APP + (p === 'chat' ? '#apuntes' : p === 'metas' ? '#tareas' : p === 'plata' ? '#finanzas' : '#inicio');
-  w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
-  const top = w.addStack(); top.centerAlignContent();
-  texto(top, 'Rumb♥', 13, C.marron, 'h'); top.addSpacer();
-  if (res.racha) { const f = top.addImage(SFSymbol.named('flame.fill').image); f.imageSize = new Size(11, 11); f.tintColor = new Color('#E8762E'); top.addSpacer(3); texto(top, String(res.racha), 11, C.suave, 'b'); }
-  w.addSpacer(6);
-  texto(w, 'Disponible de ' + (res.mes || 'este mes'), 11, C.suave);
-  texto(w, fmt(res.disp), fam === 'small' ? 24 : 28, res.disp < 0 ? new Color('#B3261E') : C.tinta, 'h');
-  texto(w, `quedan ${res.dias} días`, 11, C.suave);
-  if (fam !== 'small') {
-    w.addSpacer(8);
-    const fila = w.addStack(); fila.spacing = 14;
-    const a = fila.addStack(); a.layoutVertically();
-    texto(a, 'Próximo pago', 10, C.suave);
-    texto(a, res.prox ? `${res.prox.n} · día ${res.prox.d}` : 'Todo pagado', 12, C.tinta, 'b');
-    if (res.prox) texto(a, fmt(res.prox.a), 11, C.rosa, 'b');
-    const b = fila.addStack(); b.layoutVertically();
-    texto(b, res.meta ? res.meta.n : 'Metas', 10, C.suave);
-    if (res.meta) { texto(b, `${res.meta.pct} % · ${corto(res.meta.s)} de ${corto(res.meta.t)}`, 12, C.tinta, 'b'); b.addSpacer(3); barra(b, res.meta.pct, 110, C.verde); }
-    if (res.cofres) { w.addSpacer(6); texto(w, res.cofres === 1 ? '¡Hay un cofre listo para abrir!' : `¡Hay ${res.cofres} cofres listos!`, 11, C.oro, 'b'); }
+  const w = new ListWidget(), fam = config.widgetFamily || 'medium', p = (args.widgetParameter || '').toLowerCase().trim();
+  const g = new LinearGradient(); g.colors = [col(T.f1), col(T.f2)]; g.locations = [0, 1]; g.startPoint = new Point(0, 0); g.endPoint = new Point(1, 1); w.backgroundGradient = g;
+  w.url = APP + ({chat: '#apuntes', metas: '#tareas', plata: '#finanzas'}[p] || '#inicio');
+  w.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000);
+  w.setPadding(14, 15, 12, 15);
+  cabecera(w, res); w.addSpacer(fam === 'small' ? 8 : 6);
+
+  if (fam === 'small') {
+    disponible(w, res, false);
+    w.addSpacer();
+    if (res.cofres) { const f = w.addStack(); f.centerAlignContent(); icono(f, 'gift.fill', 11, T.acento); f.addSpacer(4); txt(f, res.cofres === 1 ? 'Cofre listo' : `${res.cofres} cofres listos`, 11, T.acento, 'b'); }
+    else if (res.prox) { const f = w.addStack(); f.centerAlignContent(); icono(f, 'calendar', 10, T.suave); f.addSpacer(4); txt(f, `${res.prox.n} · día ${res.prox.d}`, 10, T.suave, 'b'); }
+    else txt(w, 'Todo pagado este mes', 10, T.verde, 'b');
+  } else {
+    const fila = w.addStack(); fila.topAlignContent();
+    const izq = fila.addStack(); izq.layoutVertically(); disponible(izq, res, false);
+    fila.addSpacer(10);
+    const der = fila.addStack(); der.layoutVertically(); der.spacing = 6;
+    const a = tarjeta(der);
+    const ah = a.addStack(); ah.centerAlignContent(); icono(ah, res.prox ? 'calendar' : 'checkmark.seal.fill', 11, res.prox ? T.rosa : T.verde); ah.addSpacer(4); txt(ah, res.prox ? 'Próximo pago' : 'Pagos', 10, T.suave, 'b');
+    txt(a, res.prox ? res.prox.n : 'Todo pagado', 12, T.tinta, 'b');
+    if (res.prox) txt(a, `${fmt(res.prox.a)} · día ${res.prox.d}`, 10, T.suave);
+    const b = tarjeta(der);
+    const bh = b.addStack(); bh.centerAlignContent(); icono(bh, 'airplane', 11, T.verde); bh.addSpacer(4); txt(bh, res.meta ? `${res.meta.pct} %` : 'Metas', 10, T.suave, 'b');
+    txt(b, res.meta ? res.meta.n : 'Sin metas abiertas', 12, T.tinta, 'b');
+    if (res.meta) { b.addSpacer(3); barra(b, res.meta.pct / 100, 112, T.verde, 5); }
+    w.addSpacer();
+    if (fam === 'large') {
+      if (res.chat) {
+        const c = tarjeta(w, 10);
+        const ch = c.addStack(); ch.centerAlignContent(); icono(ch, 'bubble.left.fill', 11, T.rosa); ch.addSpacer(4); txt(ch, `${res.chat.by === 'D' ? 'David' : 'Vale'} en el chat`, 10, T.suave, 'b');
+        txt(c, res.chat.t || 'Mandó una foto', 13, T.tinta, 'm', 3);
+        w.addSpacer(8);
+      }
+      const n = w.addStack(); n.centerAlignContent(); n.spacing = 6;
+      icono(n, 'star.fill', 11, '#E8A93A'); txt(n, `Nivel ${res.nivel}`, 11, T.tinta, 'b');
+      if (res.pts) { txt(n, `· Vale ${res.pts.V} · David ${res.pts.D}`, 11, T.suave); }
+      w.addSpacer(6);
+    }
+    if (res.cofres) { const f = w.addStack(); f.centerAlignContent(); icono(f, 'gift.fill', 11, T.acento); f.addSpacer(4); txt(f, res.cofres === 1 ? '¡Hay un cofre listo para abrir!' : `¡Hay ${res.cofres} cofres listos!`, 11, T.acento, 'b'); }
   }
-  if (fam === 'large' && res.chat) {
-    w.addSpacer(10);
-    texto(w, `${res.chat.by === 'D' ? 'David' : 'Vale'} en el chat`, 10, C.suave);
-    const t = w.addText(res.chat.t || 'Mandó una foto'); t.font = Font.mediumRoundedSystemFont(13); t.textColor = C.tinta; t.lineLimit = 3;
-  }
-  w.addSpacer();
-  if (viejo) texto(w, 'Sin conexión · últimos datos', 9, C.suave);
+  if (viejo) { w.addSpacer(2); txt(w, 'Sin conexión · últimos datos', 9, T.suave); }
   return w;
 }
 async function run() {
   let w;
   try { w = crear(await datos()); }
   catch (e) {
-    w = new ListWidget(); w.backgroundColor = C.fondo1; w.url = APP;
-    texto(w, 'Rumb♥', 14, C.marron, 'h'); w.addSpacer(6);
-    const t = w.addText(e.message === 'Cancelado' ? 'Toquen para abrir Rumbo' : e.message); t.font = Font.mediumRoundedSystemFont(12); t.textColor = C.suave;
+    w = new ListWidget(); const g = new LinearGradient(); g.colors = [col(T.f1), col(T.f2)]; g.locations = [0, 1]; w.backgroundGradient = g; w.url = APP;
+    const top = w.addStack(); top.centerAlignContent(); txt(top, 'Rumb', 14, T.acento, 'h'); icono(top, 'heart.fill', 11, T.rosa);
+    w.addSpacer(8); txt(w, e.message, 12, T.suave, 'b', 4);
   }
-  if (config.runsInWidget) Script.setWidget(w); else await w.presentMedium();
+  if (config.runsInWidget) Script.setWidget(w);
+  else { const f = (args.widgetParameter || '').includes('grande') ? 'presentLarge' : 'presentMedium'; await w[f](); }
   Script.complete();
 }
 await run();

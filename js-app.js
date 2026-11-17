@@ -163,13 +163,15 @@ function sanitize(raw) {
   out.diario = objs(d.diario).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.f)).map(x => ({f: x.f, out: int(x.out), sv: int(x.sv), pend: int(x.pend), td: int(x.td), tt: int(x.tt), notas: int(x.notas), pV: int(x.pV), pD: int(x.pD), racha: int(x.racha)})).slice(-400);
   out.aprendeDesde = /^\d{4}-\d{2}-\d{2}$/.test(d.aprendeDesde) ? d.aprendeDesde : null;
   out.aprendeAviso = d.aprendeAviso === true;
+  // v3.1 · Enlace secreto del widget (lo comparten los dos; sin él nadie puede leer el resumen)
+  out.widgetTok = typeof d.widgetTok === 'string' && /^[a-f0-9]{32}$/.test(d.widgetTok) ? d.widgetTok : '';
   // Perfil de cada uno (gustos y contexto): null hasta que lo creen
   const pp = isObj(d.people) ? d.people : {};
   out.people = {V: sanPerson(pp.V), D: sanPerson(pp.D)};
   return out;
 }
 function save(local) {
-  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, aprendeDesde: S.aprendeDesde, aprendeAviso: S.aprendeAviso === true, ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, aprendeDesde: S.aprendeDesde, aprendeAviso: S.aprendeAviso === true, widgetTok: S.widgetTok || '', ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
   // v1.4: también a la nube (si está activa); `local` = cambio que vino de la nube, no se reenvía
   if (!local && typeof Nube === 'object') Nube.push();
 }
@@ -906,7 +908,12 @@ setBody.addEventListener('click', e => {
   else if (id === 'setNube') { closeSettings(); Nube.salir().then(() => { gateResume = ''; showGate(); }); }
   else if (id === 'setInstall') { closeSettings(); installApp(); }
   else if (id === 'setPush') { closeSettings(); activarAvisos(); }
-  else if (id === 'setWidget') { closeSettings(); location.href = 'widget.html'; }
+  else if (id === 'setWidget') {
+    closeSettings();
+    if (!S.widgetTok) { const a = new Uint8Array(16); crypto.getRandomValues(a); S.widgetTok = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save(); }
+    else if (typeof Nube === 'object' && Nube.push) Nube.push(true);
+    setTimeout(() => { location.href = 'widget.html#t=' + S.widgetTok; }, T(900));
+  }
   else if (id === 'setCuentas') { closeSettings(); if (typeof Cuentas !== 'undefined') Cuentas.open('pagos'); }
   else if (id === 'setRitmo') { RITMO = RITMO !== 1 ? 1 : 1.45; try { localStorage.setItem(RITMO_KEY, RITMO === 1 ? 'normal' : 'tranquilo'); } catch (e) {} settingsStep(false, true); $('#setRitmo').focus(); island({icon: 'clock', color: 'a1', title: RITMO !== 1 ? 'Animaciones tranquilas' : 'Velocidad normal', sub: RITMO !== 1 ? 'Todo se mueve con más calma' : 'Todo vuelve a su ritmo original', dur: 2400}); }
   else if (id === 'setTheme') { setTheme(theme === 'light' ? 'dark' : 'light'); settingsStep(false, true); $('#setTheme').focus(); }
