@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Widget de Rumbo</title>
+<meta name="theme-color" content="#FFE7CC">
+<style>
+:root{--fg:#1B100B;--muted:#4A3F38;--a1:#9A3F1E;--a3:#C2477A;--card:#FFFFFFD9;--line:#EAD9CF}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fg:#FFF;--muted:#CBD5EA;--card:#151C33E6;--line:#2A3355}}
+:root[data-theme="dark"]{--fg:#FFF;--muted:#CBD5EA;--card:#151C33E6;--line:#2A3355}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:var(--fg);background:linear-gradient(165deg,#FFE7CC,#FFD3C2 45%,#F9C6D6 80%,#E9E2F5)}
+@media (prefers-color-scheme:dark){body{background:linear-gradient(165deg,#1E2160,#3B2E7A 60%,#5B2A6E)}}
+main{max-width:560px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px))}
+h1{margin:0;font-size:34px;letter-spacing:-.5px}
+h1 span{color:var(--a3)}
+.sub{margin:6px 0 20px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px;margin-bottom:14px;backdrop-filter:blur(18px)}
+ol{margin:0;padding-left:22px}li{margin:8px 0}
+b.k{display:inline-block;padding:1px 8px;border-radius:8px;background:#0000000F}
+button{width:100%;min-height:54px;border:0;border-radius:18px;background:var(--a1);color:#fff;font:700 17px inherit;font-family:inherit;cursor:pointer}
+button.ok{background:#2E8B6A}
+a{color:var(--a3);font-weight:700}
+textarea{width:100%;height:120px;margin-top:12px;border-radius:14px;border:1px solid var(--line);padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;background:#00000008;color:var(--fg)}
+.nota{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Widget de <span>Rumbo</span></h1>
+  <p class="sub">Lo disponible del mes, el próximo pago, la meta y la racha, en la pantalla de inicio del iPhone.</p>
+
+  <section class="card">
+    <h2 style="margin:0 0 8px;font-size:19px">1 · Copien el widget</h2>
+    <button id="copiar" type="button">Copiar el código del widget</button>
+    <textarea id="codigo" readonly aria-label="Código del widget">Cargando…</textarea>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 8px;font-size:19px">2 · Péguenlo en Scriptable</h2>
+    <ol>
+      <li>Instalen la app gratuita <a href="https://apps.apple.com/app/scriptable/id1405459188">Scriptable</a>.</li>
+      <li>Ábranla, toquen <b class="k">+</b> arriba a la derecha y peguen el código.</li>
+      <li>Toquen el título del script y llámenlo <b>Rumbo</b>.</li>
+      <li>Toquen <b class="k">▶</b> abajo: entren con su correo y contraseña de Rumbo. Se ve una vista previa.</li>
+    </ol>
+    <p class="nota">¿Entran a Rumbo con Google? Primero creen una contraseña: en Rumbo, «Olvidé mi contraseña» con su Gmail. Les llega un correo para crearla.</p>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 8px;font-size:19px">3 · Pónganlo en la pantalla de inicio</h2>
+    <ol>
+      <li>Dejen presionado un espacio vacío de la pantalla de inicio y toquen <b class="k">Editar</b> › <b class="k">Agregar widget</b>.</li>
+      <li>Busquen <b>Scriptable</b>, escojan el tamaño mediano (o pequeño o grande) y agréguenlo.</li>
+      <li>Toquen el widget mientras tiembla › <b>Script</b>: escojan <b>Rumbo</b>.</li>
+      <li>Opcional, en <b>Parameter</b>: <b class="k">chat</b>, <b class="k">metas</b> o <b class="k">plata</b> para que al tocarlo abra esa parte de Rumbo.</li>
+    </ol>
+    <p class="nota">El widget se actualiza solo cada 30 minutos más o menos (lo decide el iPhone).</p>
+  </section>
+</main>
+<script>
+  const t = document.getElementById('codigo'), b = document.getElementById('copiar');
+  fetch('widget-rumbo.js', {cache: 'no-cache'}).then(r => r.text()).then(s => { t.value = s; }).catch(() => { t.value = 'No se pudo cargar el código. Revisen el internet y recarguen.'; });
+  b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(t.value); } catch (e) { t.focus(); t.select(); document.execCommand('copy'); }
+    b.textContent = 'Copiado: ahora péguenlo en Scriptable'; b.classList.add('ok');
+  });
+</script>
+</body>
+</html>

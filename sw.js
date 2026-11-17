@@ -1,7 +1,7 @@
 /* Rumbo · Service worker (v1.3). Solo funciona cuando la app está publicada (https), no con file://.
    Guarda la app para abrirla rápido y sin señal. Estrategia: muestra lo guardado y, por detrás, trae la versión nueva
    (la ven en la siguiente apertura). Al publicar cambios grandes, subir VERSION para limpiar lo viejo. */
-const VERSION = 'rumbo-202611131524';
+const VERSION = 'rumbo-202611170932';
 const SHELL = [
   './', './index.html', './favicon.svg', './manifest.webmanifest',
   'css-estilos.css', 'css-graficas.css', 'css-perfil.css', 'css-planes.css', 'css-metaplan.css', 'css-compas.css', 'css-cuentas.css', 'css-nube.css', 'css-apuntes.css', 'css-escenas.css',
@@ -38,4 +38,19 @@ self.addEventListener('fetch', e => {
       return (await c.match(key)) || (await c.match(r, {ignoreSearch: true})) || (r.mode === 'navigate' ? (await c.match('./index.html')) || (await c.match('./')) : Response.error());
     }
   })());
+});
+
+// v3.0 · Avisos push (los envía el robot de GitHub). Llegan aunque Rumbo esté cerrado.
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = {body: e.data ? e.data.text() : ''}; }
+  const title = d.title || 'Rumbo', opts = {body: d.body || '', tag: d.tag || 'rumbo', renotify: !!d.tag, icon: 'iconos-icono-192.png', badge: 'iconos-icono-192.png', data: {url: d.url || './'}};
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
+    for (const c of list) { if (c.url.startsWith(self.registration.scope) && 'focus' in c) { c.navigate && c.navigate(url).catch(() => {}); return c.focus(); } }
+    return self.clients.openWindow(url);
+  }));
 });

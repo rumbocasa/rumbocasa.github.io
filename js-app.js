@@ -771,6 +771,44 @@ function saveBudget() {
 // Ajustes (v1.0): grupos con filas claras, interruptores y un solo estilo
 const personName = w => (S.people[w] && S.people[w].apodo) || (w === 'V' ? 'Vale' : 'David');
 const setGroup = (t, body) => `<section class="set-g"><h3>${t}</h3><div class="set-list">${body}</div></section>`;
+/* ===== v3.0 · Celular: resumen para widgets y avisos push ===== */
+// Resumen pequeño que viaja con la casa a la nube: lo leen los widgets (Scriptable) y el robot de avisos (GitHub)
+function resumenCasa() {
+  const out = totalOut(), n = new Date(), dim = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+  const pend = S.pays.filter(p => !p.paid).sort((a, b) => a.d - b.d)[0];
+  const metas = S.goals.filter(g => !g.open && g.t > 0 && g.s < g.t).sort((a, b) => (a.by ? +new Date(a.by) : 9e15) - (b.by ? +new Date(b.by) : 9e15));
+  const m = metas[0], lv = level(), ult = [...(S.notas || [])].reverse().find(x => x.by === 'V' || x.by === 'D');
+  const cofres = S.goals.reduce((a, g) => a + (typeof Planes === 'object' && Planes.listos ? Planes.listos(g).length : 0), 0);
+  return {disp: S.income - out, ingreso: S.income, gastado: out, dias: dim - n.getDate(), mes: monthName,
+    prox: pend ? {n: pend.n, a: pend.a, d: pend.d} : null, pendientes: S.pays.filter(p => !p.paid).length,
+    meta: m ? {n: m.n, pct: Math.round(m.s / m.t * 100), s: m.s, t: m.t} : null,
+    racha: S.streak, nivel: lv.n, pts: {V: S.pts.V, D: S.pts.D}, cofres,
+    chat: ult ? {by: ult.by, t: String(ult.t).slice(0, 120), at: ult.at} : null, at: n.toISOString()};
+}
+// Clave pública para los avisos push (la privada solo la tiene el robot de GitHub)
+const VAPID_PUB = 'BCVno__JGakkM1yGRPgeXgsyucIlhFGp5H09nT4Smsu52hnlYG0FHMXXo7jHKbNR482bG4apeT75f6D6IS4-Y3c';
+const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+const esIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const instalada = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+const pushId = () => { let id = ''; try { id = localStorage.getItem('hogar:v1:push-id') || ''; if (!id) { id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); localStorage.setItem('hogar:v1:push-id', id); } } catch (e) { id = 'd' + Date.now().toString(36); } return id; };
+const pushSub = () => { try { return Notification.permission === 'granted' ? 'Activados en este celular' : Notification.permission === 'denied' ? 'Bloqueados: actívenlos en Ajustes del iPhone › Rumbo' : 'Pagos que vencen, mensajes del chat y cofres listos'; } catch (e) { return 'Pagos que vencen, mensajes del chat y cofres listos'; } };
+async function activarAvisos() {
+  const ok = (title, sub) => island({icon: 'bell', color: 'ok', title, sub, dur: 4200}), no = (title, sub) => island({icon: 'alert', color: 'alert', title, sub, dur: 6400});
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+    if (esIOS() && !instalada()) return no('Primero instalen Rumbo', 'En Safari: Compartir › «Agregar a pantalla de inicio», y actívenlos desde el ícono');
+    return no('Este navegador no recibe avisos', 'Usen Rumbo instalado en el iPhone (iOS 16.4 o más nuevo)');
+  }
+  if (typeof Nube !== 'object' || !Nube.activo() || !Nube.lista()) return no('Primero entren a la nube', 'Los avisos necesitan la cuenta conectada');
+  let perm = Notification.permission; if (perm === 'default') perm = await Notification.requestPermission();
+  if (perm !== 'granted') return no('No dieron permiso', 'Ajustes del iPhone › Notificaciones › Rumbo › Permitir');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUB)});
+    await Nube.guardarPush(pushId(), JSON.parse(JSON.stringify(sub)));
+    try { await reg.showNotification('Rumbo · avisos activados', {body: `${S.profile === 'D' ? 'David' : 'Vale'}, aquí les avisamos los pagos, el chat y los cofres.`, icon: (document.querySelector('link[rel="apple-touch-icon"]') || {}).href, tag: 'rumbo-prueba'}); } catch (e) {}
+    ok('Avisos activados', 'Les llegan aunque Rumbo esté cerrado');
+  } catch (e) { console.error('Rumbo · avisos:', e); no('No se pudieron activar', e && e.message ? e.message.slice(0, 80) : 'Intenten otra vez'); }
+}
 const setRow = (id, icon, tn, t, sub) => `<button class="set-row" id="${id}">${tile(icon, tn)}<span class="set-tx"><b>${t}</b><small>${sub}</small></span>${ic('arrow', 'set-ch')}</button>`;
 const setSwitch = (id, icon, t, sub, on) => `<button class="set-row" id="${id}" role="switch" aria-checked="${on}">${tile(icon, on ? 'ok' : 'mu')}<span class="set-tx"><b>${t}</b><small>${sub}</small></span><i class="sw" aria-hidden="true"></i></button>`;
 function settingsStep(confirm, keep) {
@@ -781,7 +819,7 @@ function settingsStep(confirm, keep) {
         <div class="set-seg" role="group" aria-label="Perfil activo">${['V', 'D'].map(w => `<button data-prof="${w}" aria-pressed="${S.profile === w}">${Avatares.head(w, 30, 'happy', 'decor', true)}<span>${esc(personName(w))}</span></button>`).join('')}</div>
         ${['V', 'D'].map(w => setRow('setProf' + w, 'user', w === 'V' ? 'a3' : 'a2', (S.people[w] ? 'Editar el perfil de ' : 'Crear el perfil de ') + (w === 'V' ? 'Valentina' : 'David'), S.people[w] ? 'Gustos, cumpleaños y cómo le hablan Coral y Oreo' : 'Cuéntenle a Coral y Oreo quién es')).join('')}`)}
       ${setGroup('Apariencia', setSwitch('setTheme', theme === 'dark' ? 'moon' : 'sun', 'Modo oscuro', theme === 'dark' ? 'Noche azul' : 'Atardecer claro', theme === 'dark') + setSwitch('setRitmo', 'clock', 'Animaciones tranquilas', RITMO !== 1 ? 'Más pausadas, para disfrutarlas' : 'Velocidad normal', RITMO !== 1))}
-      ${setGroup('Este dispositivo', setRow('setInstall', 'phone', 'a3', 'Instalar Rumbo como app', installSub()))}
+      ${setGroup('Este dispositivo', setRow('setInstall', 'phone', 'a3', 'Instalar Rumbo como app', installSub()) + setRow('setPush', 'bell', 'a1', 'Avisos en este celular', pushSub()) + setRow('setWidget', 'gem', 'a2', 'Widget en la pantalla de inicio', 'Lo disponible, el próximo pago y la meta, sin abrir Rumbo'))}
       ${setGroup('Seguridad', setSwitch('setFace', 'face', 'Face ID al entrar', S.faceId === true ? 'Se pide al entrar y al volver a la app' : 'Apagado: entran eligiendo su perfil', S.faceId === true) + setRow('setLock', 'lock', 'mu', 'Bloquear ahora', 'Vuelve a la pantalla de entrada'))}
       ${setGroup('La casa', setRow('setCuentas', 'edit', 'a2', 'Pagos, deudas y topes', `${S.pays.length} pagos fijos · ${S.debts.length} ${S.debts.length === 1 ? 'deuda' : 'deudas'} · comprobantes`) + setRow('setEdit', 'wallet', 'a1', 'Ingreso y presupuesto', `Ingreso ${fmt(S.income)} · ${S.cats.length} categorías`))}
       ${setGroup('Coral y Oreo', setSwitch('setCompas', 'heart', 'Coral y Oreo en pantalla', S.compas !== false ? 'Los acompañan, juegan y guían entre páginas' : 'Apagado: solo salen a celebrar', S.compas !== false) + setRow('setTips', 'bulb', 'gd', 'Consejos del día', 'Reflexión y consejitos de sus asistentes') + setRow('setAbout', 'info', 'a2', 'Acerca de Rumbo', 'La marca, Coral y Oreo'))}
@@ -867,6 +905,8 @@ setBody.addEventListener('click', e => {
   else if (id === 'impOk') { const c = importStep.copia; if (!c) return; importStep.copia = null; Nube.importar(c).then(() => { renderChips(); syncTag(); closeSettings(); render(true); island({icon: 'ok', color: 'ok', title: 'Copia restaurada', sub: 'Así quedó todo como en la copia', dur: 3200}); }).catch(e => island({icon: 'alert', color: 'alert', title: 'No se pudo restaurar', sub: e.message, dur: 4200})); }
   else if (id === 'setNube') { closeSettings(); Nube.salir().then(() => { gateResume = ''; showGate(); }); }
   else if (id === 'setInstall') { closeSettings(); installApp(); }
+  else if (id === 'setPush') { closeSettings(); activarAvisos(); }
+  else if (id === 'setWidget') { closeSettings(); location.href = 'widget.html'; }
   else if (id === 'setCuentas') { closeSettings(); if (typeof Cuentas !== 'undefined') Cuentas.open('pagos'); }
   else if (id === 'setRitmo') { RITMO = RITMO !== 1 ? 1 : 1.45; try { localStorage.setItem(RITMO_KEY, RITMO === 1 ? 'normal' : 'tranquilo'); } catch (e) {} settingsStep(false, true); $('#setRitmo').focus(); island({icon: 'clock', color: 'a1', title: RITMO !== 1 ? 'Animaciones tranquilas' : 'Velocidad normal', sub: RITMO !== 1 ? 'Todo se mueve con más calma' : 'Todo vuelve a su ritmo original', dur: 2400}); }
   else if (id === 'setTheme') { setTheme(theme === 'light' ? 'dark' : 'light'); settingsStep(false, true); $('#setTheme').focus(); }

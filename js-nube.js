@@ -115,7 +115,8 @@ const Nube = (function () {
     let json = null; try { json = localStorage.getItem(KEY); } catch (e) {}
     if (!json || json === lastJson) return;
     lastJson = json; rev = uid();
-    ref.set({json, rev, by: perfil, email: user ? user.email : '', at: firebase.firestore.FieldValue.serverTimestamp()}).catch(e => {
+    let resumen = null; try { if (typeof resumenCasa === 'function') resumen = resumenCasa(); } catch (e) {}
+    ref.set({json, rev, by: perfil, email: user ? user.email : '', at: firebase.firestore.FieldValue.serverTimestamp(), ...(resumen ? {resumen} : {})}).catch(e => {
       console.warn('Rumbo · Nube:', e); lastJson = '';
       if (Date.now() - errAviso > 30000) { errAviso = Date.now(); island({icon: 'alert', color: 'alert', title: 'No se pudo subir a la nube', sub: 'Queda guardado aquí; se reintenta con el próximo cambio', dur: 4200}); }
     });
@@ -313,5 +314,10 @@ const Nube = (function () {
   async function salir() { listo = false; if (unsub) { unsub(); unsub = null; } setMemo(null); try { await auth.signOut(); } catch (e) {} }
   const estado = () => !CONF ? 'Sin configurar · los datos viven solo en este navegador' : !WEB ? 'Configurada · se activa cuando la app esté publicada' : user ? `Conectada como ${user.email}` : 'Sin sesión';
 
-  return {activo: () => ACTIVO, configurada: () => CONF, lista: () => listo, perfil: () => perfil, entrada, push, salir, estado, subirArchivo, bajarArchivo, borrarArchivo, subirFoto, bajarFoto, borrarFoto, subirPendientes, exportar, leerCopia, importar, pure: {perfilDe}};
+  // v3.0 · Suscripción a avisos push de este celular (la lee el robot de GitHub)
+  async function guardarPush(id, sub) {
+    if (!ref || !user) throw new Error('Sin sesión en la nube');
+    await ref.collection('push').doc(String(id).slice(0, 40)).set({perfil, sub, ua: navigator.userAgent.slice(0, 160), at: firebase.firestore.FieldValue.serverTimestamp()});
+  }
+  return {guardarPush, activo: () => ACTIVO, configurada: () => CONF, lista: () => listo, perfil: () => perfil, entrada, push, salir, estado, subirArchivo, bajarArchivo, borrarArchivo, subirFoto, bajarFoto, borrarFoto, subirPendientes, exportar, leerCopia, importar, pure: {perfilDe}};
 })();
