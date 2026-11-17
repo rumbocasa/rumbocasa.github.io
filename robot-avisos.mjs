@@ -8,6 +8,8 @@ import webpush from 'web-push';
 const TZ = 'America/Bogota', APP = 'https://rumbocasa.github.io/';
 const NOMBRE = {V: 'Vale', D: 'David'}, OTRO = {V: 'D', D: 'V'};
 
+// Mientras no estén los secretos configurados, el robot espera tranquilo (sin fallar ni mandar correos de error)
+if (!process.env.FIREBASE_SA || !process.env.VAPID_PRIVATE) { console.log('Faltan los secretos FIREBASE_SA o VAPID_PRIVATE: no se envía nada todavía.'); process.exit(0); }
 admin.initializeApp({credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SA))});
 const db = admin.firestore();
 webpush.setVapidDetails(APP, process.env.VAPID_PUBLIC, process.env.VAPID_PRIVATE);
