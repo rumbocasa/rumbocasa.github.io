@@ -118,7 +118,7 @@ const Nube = (function () {
     let resumen = null; try { if (typeof resumenCasa === 'function') resumen = resumenCasa(); } catch (e) {}
     // v3.1 · Copia del resumen en el enlace secreto del widget (solo se puede leer conociendo el enlace)
     if (resumen && S.widgetTok) ref.collection('widget').doc(S.widgetTok).set({resumen, at: firebase.firestore.FieldValue.serverTimestamp()}).catch(e => console.warn('Rumbo · widget:', e));
-    ref.set({json, rev, by: perfil, email: user ? user.email : '', at: firebase.firestore.FieldValue.serverTimestamp(), ...(resumen ? {resumen} : {})}).catch(e => {
+    ref.set({json, rev, by: perfil, email: user ? user.email : '', at: firebase.firestore.FieldValue.serverTimestamp(), ...(resumen ? {resumen} : {}), ...(S.buzonTok ? {buzonTok: S.buzonTok} : {})}).catch(e => {
       console.warn('Rumbo · Nube:', e); lastJson = '';
       if (Date.now() - errAviso > 30000) { errAviso = Date.now(); island({icon: 'alert', color: 'alert', title: 'No se pudo subir a la nube', sub: 'Queda guardado aquí; se reintenta con el próximo cambio', dur: 4200}); }
     });

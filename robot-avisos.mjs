@@ -4,6 +4,8 @@
 // Secretos (GitHub › Settings › Secrets › Actions): FIREBASE_SA (JSON de la cuenta de servicio) y VAPID_PRIVATE.
 import admin from 'firebase-admin';
 import webpush from 'web-push';
+import fs from 'node:fs';
+import vm from 'node:vm';
 
 const TZ = 'America/Bogota', APP = 'https://rumbocasa.github.io/';
 const NOMBRE = {V: 'Vale', D: 'David'}, OTRO = {V: 'D', D: 'V'};
@@ -22,6 +24,64 @@ function ahora() {
   return {iso: `${g('year')}-${g('month')}-${g('day')}`, d: +g('day'), h: +g('hour')};
 }
 
+/* ===== Buzón automático: Siri y los mensajes del banco ===== */
+// El mismo cerebro de Coral que usa la app (js-aprende.js + js-asistente.js del repositorio), cargado en una caja aislada
+let cerebro = null;
+function cargarCerebro() {
+  if (cerebro) return cerebro;
+  const fmt = n => (n < 0 ? '−$' : '$') + Math.round(Math.abs(+n || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const ctx = vm.createContext({fmt, console, Date, Math, JSON, Intl, RegExp, String, Number, Array, Object, setTimeout, clearTimeout, setInterval, clearInterval});
+  for (const f of ['js-aprende.js', 'js-asistente.js']) vm.runInContext(fs.readFileSync(f, 'utf8').replace(/^const (Aprende|Asistente) =/m, 'var $1 ='), ctx, {filename: f});
+  cerebro = {Aprende: ctx.Aprende, Asistente: ctx.Asistente};
+  return cerebro;
+}
+// Resumen para el widget (igual que resumenCasa() de la app)
+function resumenDe(S) {
+  const n = new Date(), out = (S.moves || []).reduce((a, m) => a + m.a, 0), dim = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+  const pend = (S.pays || []).filter(p => !p.paid).sort((a, b) => a.d - b.d)[0];
+  const metas = (S.goals || []).filter(g => !g.open && g.t > 0 && g.s < g.t).sort((a, b) => (a.by ? +new Date(a.by) : 9e15) - (b.by ? +new Date(b.by) : 9e15)), m = metas[0];
+  const t = (S.pts.V || 0) + (S.pts.D || 0), ult = [...(S.notas || [])].reverse().find(x => (x.by === 'V' || x.by === 'D') && x.c !== 'a');
+  const cofres = (S.goals || []).reduce((a, g) => g.open || !(g.t > 0) ? a : a + [25, 50, 75, 100].filter(s => g.s / g.t >= s / 100 && !(g.cofres || []).some(c => +c.s === s)).length, 0);
+  return {disp: S.income - out, ingreso: S.income, gastado: out, dias: dim - n.getDate(), mes: n.toLocaleDateString('es-CO', {month: 'long', timeZone: TZ}),
+    prox: pend ? {n: pend.n, a: pend.a, d: pend.d} : null, pendientes: (S.pays || []).filter(p => !p.paid).length,
+    meta: m ? {n: m.n, pct: Math.round(m.s / m.t * 100), s: m.s, t: m.t} : null, racha: S.streak || 0, nivel: Math.floor(t / 100) + 1, pts: {V: S.pts.V || 0, D: S.pts.D || 0}, cofres,
+    chat: ult ? {by: ult.by, t: String(ult.t).slice(0, 120), at: ult.at} : null, at: n.toISOString()};
+}
+const leerM = m => { const [tok, para, origen, ...resto] = String(m || '').split('|'); let texto = resto.join('|').trim(); if (/^b64:/.test(texto)) texto = Buffer.from(texto.slice(4).replace(/\s+/g, ''), 'base64').toString('utf8'); return {tok, para: para === 'D' ? 'D' : 'V', origen: (origen || 'voz').slice(0, 12), texto: texto.replace(/\s+/g, ' ').trim().slice(0, 1000)}; };
+async function buzon(subs) {
+  const docs = (await casa.collection('buzon').limit(20).get()).docs; if (!docs.length) return;
+  const {Asistente} = cargarCerebro(), hechos = [];
+  await db.runTransaction(async tx => {
+    hechos.length = 0;
+    const snap = await tx.get(casa), d = snap.data(), raw = JSON.parse(d.json), S = raw.data || raw;
+    (S.goals || []).forEach(g => { if (g.by) g.by = new Date(g.by); });
+    S.notas = S.notas || []; S.recordatorios = S.recordatorios || []; S.debts = S.debts || [];
+    const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    for (const doc of docs) {
+      const e = leerM(doc.data().m);
+      if (!d.buzonTok || e.tok !== d.buzonTok || !e.texto) { hechos.push({doc, nada: true}); continue; }
+      const ahora = new Date(), nota = {id: uid('n'), t: (e.origen === 'banco' ? 'Desde mi banco: ' : '') + e.texto, k: 'nota', at: ahora.toISOString(), by: e.para, att: [], hecho: false, fav: false, c: 'a', para: e.para};
+      S.notas.push(nota);
+      let r; try { r = Asistente.ejecutar(e.texto, S, e.para, ahora, nota.id); } catch (er) { console.error('Coral:', er.message); r = {texto: 'Me llegó algo que no entendí: «' + e.texto.slice(0, 80) + '». Revísalo en el chat.'}; }
+      const card = r.card ? {...r.card} : null; if (card && !card.ref) card.ref = nota.id;
+      S.notas.push({id: uid('n'), t: r.texto, k: 'respuesta', at: new Date(ahora.getTime() + 1).toISOString(), by: 'bot', att: [], hecho: false, fav: false, c: 'a', para: e.para, ...(card ? {card} : {})});
+      hechos.push({doc, para: e.para, texto: r.texto, origen: e.origen});
+    }
+    if (S.notas.length > 600) S.notas.splice(0, S.notas.length - 600);
+    const json = JSON.stringify(raw), resumen = resumenDe(S);
+    tx.set(casa, {...d, json, rev: 'robot' + Date.now().toString(36), by: 'robot', at: admin.firestore.FieldValue.serverTimestamp(), resumen});
+    if (S.widgetTok) tx.set(casa.collection('widget').doc(S.widgetTok), {resumen, at: admin.firestore.FieldValue.serverTimestamp()});
+  });
+  for (const h of hechos) {
+    await h.doc.ref.delete();
+    if (h.nada) continue;
+    for (const s of subs.filter(x => x.perfil === h.para)) {
+      try { await webpush.sendNotification(s.sub, JSON.stringify({title: `${h.para === 'D' ? 'Oreo' : 'Coral'} ${h.origen === 'banco' ? 'vio tu banco' : 'anotó'}`, body: h.texto.slice(0, 180), url: APP + '#apuntes', tag: 'buzon'}), {TTL: 6 * 3600}); } catch (er) { console.log('No se pudo avisar', s.id, er.statusCode || er.message); }
+    }
+  }
+  console.log(`Buzón: ${hechos.filter(h => !h.nada).length} procesados`);
+}
+
 async function vuelta() {
   const snap = await casa.get(); if (!snap.exists || !snap.data().json) { console.log('Sin casa todavía'); return; }
   const raw = JSON.parse(snap.data().json), S = raw.data || raw;
@@ -35,6 +95,7 @@ async function vuelta() {
     for (const s of subs) { try { await webpush.sendNotification(s.sub, JSON.stringify({title: 'Rumbo · prueba de avisos', body: `Hola ${NOMBRE[s.perfil] || ''}: si ves esto, los avisos funcionan.`, url: APP, tag: 'prueba'}), {TTL: 3600}); ok++; } catch (e) { console.log('Falló', s.id, e.statusCode || e.message); } }
     console.log(`Prueba: ${ok} de ${subs.length} celulares`); return;
   }
+  try { await buzon(subs); } catch (e) { console.error('Buzón con error:', e.message || e); }
   const H = ahora(), avisos = [];
 
   // 1. Pagos: mañana, hoy y vencidos (entre 8 a. m. y 9 p. m., uno por día y por pago)

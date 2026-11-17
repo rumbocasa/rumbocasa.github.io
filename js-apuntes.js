@@ -87,6 +87,8 @@ const Apuntes = (function () {
         <div class="cht-acts">${tk.done ? hecho('Hecha') : b('tareaHecha', 'Ya la hice', 'ok') + (r ? '' : b('tareaRec', 'Recuérdamela', 'bell')) + b('tareaOtro', 'Para ' + nom(o), 'user')}${b('deshacer', 'Deshacer', 'undo')}</div>`;
     }
     if (c.tipo === 'gasto') return `<div class="cht-acts">${b('deshacer', 'Deshacer el gasto', 'undo')}</div>`;
+    if (c.tipo === 'pago') { const p = S.pays.find(x => x.id === c.ref); if (!p) return ''; return `<div class="cht-card"><span class="cht-card-i k-tarea">${ic('ok')}</span><span class="cht-card-tx"><b>${esc(p.n)}</b><small>${p.paid ? 'Pagado · ' + fmt(p.a) : 'Pendiente'}</small></span></div><div class="cht-acts">${p.paid ? b('deshacer', 'No, deshacer', 'undo') : ''}</div>`; }
+    if (c.tipo === 'hechoTarea') { const tk = S.tasks.find(x => x.id === c.ref); if (!tk) return ''; return `<div class="cht-acts">${tk.done ? b('deshacer', 'No, deshacer', 'undo') : ''}</div>`; }
     if (c.tipo === 'abonar') return `<div class="cht-acts">${b('abonar', 'Abonar ' + fmt(c.a), 'trend')}</div>`;
     if (c.tipo === 'consejo') return `<div class="cht-acts">${b('otroConsejo', 'Otro consejo', 'bulb')}</div>`;
     if (c.tipo === 'idea') return `<div class="cht-acts">${b('aProyecto', 'Volverla proyecto', 'target')}${b('aTarea', 'Volverla tarea', 'check')}</div>`;
@@ -106,6 +108,17 @@ const Apuntes = (function () {
     if (op === 'deshacer') {
       if (c.tipo === 'recordatorio') { const i = (S.recordatorios || []).findIndex(x => x.id === c.ref); if (i >= 0) S.recordatorios.splice(i, 1); }
       if (c.tipo === 'tarea') { const i = S.tasks.findIndex(x => x.id === c.ref); if (i >= 0) S.tasks.splice(i, 1); const j = (S.recordatorios || []).findIndex(x => x.id === c.rec); if (j >= 0) S.recordatorios.splice(j, 1); }
+      if (c.tipo === 'pago') {
+        const p = S.pays.find(x => x.id === c.ref);
+        if (p && p.paid) {
+          const quien = p.by || S.profile, k = S.moves.map(m => m.n === p.n && m.cat === p.cat && m.a === p.a).lastIndexOf(true);
+          if (k >= 0) S.moves.splice(k, 1);
+          S.pts[quien] = Math.max(0, (+S.pts[quien] || 0) - 15);
+          const dbt = p.debt ? (S.debts || []).find(x => x.id === p.debt) : null; if (dbt) dbt.saldo += +c.t || 0;
+          p.paid = false; delete p.by; if (c.a) p.a = c.a;
+        }
+      }
+      if (c.tipo === 'hechoTarea') { const tk = S.tasks.find(x => x.id === c.ref); if (tk && tk.done) { tk.done = false; S.pts[tk.w] = Math.max(0, (+S.pts[tk.w] || 0) - tk.p); } }
       if (c.tipo === 'gasto') { const i = +c.ref, mv = S.moves[i]; if (mv && mv.a === c.a) S.moves.splice(i, 1); else { const k = S.moves.map(m => m.a).lastIndexOf(c.a); if (k >= 0) S.moves.splice(k, 1); } }
       c.x = true;
     } else if (op === 'recHecho') { const r = S.recordatorios.find(x => x.id === c.ref); if (r) r.hecho = true; }

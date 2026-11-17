@@ -170,13 +170,15 @@ function sanitize(raw) {
   out.aprendeAviso = d.aprendeAviso === true;
   // v3.1 · Enlace secreto del widget (lo comparten los dos; sin él nadie puede leer el resumen)
   out.widgetTok = typeof d.widgetTok === 'string' && /^[a-f0-9]{32}$/.test(d.widgetTok) ? d.widgetTok : '';
+  // v3.3 · Llave del buzón automático (atajos de Siri y del banco)
+  out.buzonTok = typeof d.buzonTok === 'string' && /^[a-f0-9]{32}$/.test(d.buzonTok) ? d.buzonTok : '';
   // Perfil de cada uno (gustos y contexto): null hasta que lo creen
   const pp = isObj(d.people) ? d.people : {};
   out.people = {V: sanPerson(pp.V), D: sanPerson(pp.D)};
   return out;
 }
 function save(local) {
-  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, aprendeDesde: S.aprendeDesde, aprendeAviso: S.aprendeAviso === true, widgetTok: S.widgetTok || '', ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({v: SCHEMA, theme, sample: false, data: {profile: S.profile, last: S.last, income: S.income, auto: S.auto, cats: S.cats, streak: S.streak, pts: S.pts, mon: S.mon, hist: S.hist, faceLock: S.faceId === true, compas: S.compas !== false, people: S.people, aprendeDesde: S.aprendeDesde, aprendeAviso: S.aprendeAviso === true, widgetTok: S.widgetTok || '', buzonTok: S.buzonTok || '', ...Object.fromEntries(LISTS.map(k => [k, S[k]]))}})); } catch (e) {}
   // v1.4: también a la nube (si está activa); `local` = cambio que vino de la nube, no se reenvía
   if (!local && typeof Nube === 'object') Nube.push();
 }
@@ -826,7 +828,7 @@ function settingsStep(confirm, keep) {
         <div class="set-seg" role="group" aria-label="Perfil activo">${['V', 'D'].map(w => `<button data-prof="${w}" aria-pressed="${S.profile === w}">${Avatares.head(w, 30, 'happy', 'decor', true)}<span>${esc(personName(w))}</span></button>`).join('')}</div>
         ${['V', 'D'].map(w => setRow('setProf' + w, 'user', w === 'V' ? 'a3' : 'a2', (S.people[w] ? 'Editar el perfil de ' : 'Crear el perfil de ') + (w === 'V' ? 'Valentina' : 'David'), S.people[w] ? 'Gustos, cumpleaños y cómo le hablan Coral y Oreo' : 'Cuéntenle a Coral y Oreo quién es')).join('')}`)}
       ${setGroup('Apariencia', setSwitch('setTheme', theme === 'dark' ? 'moon' : 'sun', 'Modo oscuro', theme === 'dark' ? 'Noche azul' : 'Atardecer claro', theme === 'dark') + setSwitch('setRitmo', 'clock', 'Animaciones tranquilas', RITMO !== 1 ? 'Más pausadas, para disfrutarlas' : 'Velocidad normal', RITMO !== 1))}
-      ${setGroup('Este dispositivo', setRow('setInstall', 'phone', 'a3', 'Instalar Rumbo como app', installSub()) + setRow('setPush', 'bell', 'a1', 'Avisos en este celular', pushSub()) + setRow('setWidget', 'gem', 'a2', 'Widget en la pantalla de inicio', 'Lo disponible, el próximo pago y la meta, sin abrir Rumbo'))}
+      ${setGroup('Este dispositivo', setRow('setInstall', 'phone', 'a3', 'Instalar Rumbo como app', installSub()) + setRow('setPush', 'bell', 'a1', 'Avisos en este celular', pushSub()) + setRow('setWidget', 'gem', 'a2', 'Widget en la pantalla de inicio', 'Lo disponible, el próximo pago y la meta, sin abrir Rumbo') + setRow('setAuto', 'bolt', 'gd', 'Rumbo automático', 'Siri y los mensajes del banco registran pagos y gastos solos'))}
       ${setGroup('Seguridad', setSwitch('setFace', 'face', 'Face ID al entrar', S.faceId === true ? 'Se pide al entrar y al volver a la app' : 'Apagado: entran eligiendo su perfil', S.faceId === true) + setRow('setLock', 'lock', 'mu', 'Bloquear ahora', 'Vuelve a la pantalla de entrada'))}
       ${setGroup('La casa', setRow('setCuentas', 'edit', 'a2', 'Pagos, deudas y topes', `${S.pays.length} pagos fijos · ${S.debts.length} ${S.debts.length === 1 ? 'deuda' : 'deudas'} · comprobantes`) + setRow('setEdit', 'wallet', 'a1', 'Ingreso y presupuesto', `Ingreso ${fmt(S.income)} · ${S.cats.length} categorías`))}
       ${setGroup('Coral y Oreo', setSwitch('setCompas', 'heart', 'Coral y Oreo en pantalla', S.compas !== false ? 'Los acompañan, juegan y guían entre páginas' : 'Apagado: solo salen a celebrar', S.compas !== false) + setRow('setTips', 'bulb', 'gd', 'Consejos del día', 'Reflexión y consejitos de sus asistentes') + setRow('setAbout', 'info', 'a2', 'Acerca de Rumbo', 'La marca, Coral y Oreo'))}
@@ -913,6 +915,11 @@ setBody.addEventListener('click', e => {
   else if (id === 'setNube') { closeSettings(); Nube.salir().then(() => { gateResume = ''; showGate(); }); }
   else if (id === 'setInstall') { closeSettings(); installApp(); }
   else if (id === 'setPush') { closeSettings(); activarAvisos(); }
+  else if (id === 'setAuto') {
+    closeSettings();
+    if (!S.buzonTok) { const a = new Uint8Array(16); crypto.getRandomValues(a); S.buzonTok = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save(); }
+    island({icon: 'bolt', color: 'gold', title: 'Rumbo automático activado', sub: 'Pidan los atajos de Siri y del banco al desarrollador (se instalan una vez)', dur: 6000});
+  }
   else if (id === 'setWidget') {
     closeSettings();
     if (!S.widgetTok) { const a = new Uint8Array(16); crypto.getRandomValues(a); S.widgetTok = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save(); }

@@ -77,6 +77,43 @@ const Asistente = (function () {
     return s ? s.charAt(0).toUpperCase() + s.slice(1, 80) : '';
   }
 
+  /* ===== 1b. Pagos y tareas mencionados (para «ya pagué…» / «ya hice…» y mensajes del banco) ===== */
+  const palabras = s => Q(s).split(/[^a-z0-9ñ]+/).filter(w => w.length >= 4 && !/^(para|pague|pagamos|ya|hice|cuota|pago|pagado|valor|desde|cuenta|banco|bancolombia|compra|transferencia|informa|realizaste|realizo)$/.test(w));
+  // El pago pendiente que más se parece: por nombre/entidad y por monto (±3 %)
+  function pagoDe(texto, st, monto) {
+    const ws = palabras(texto); let best = null, bs = 0;
+    (st.pays || []).filter(p => !p.paid).forEach(p => {
+      const nombre = Q(`${p.n} ${p.ent || ''} ${p.ref || ''}`); let sc = ws.filter(w => nombre.includes(w)).length * 2;
+      if (monto && p.a && Math.abs(monto - p.a) <= p.a * .03) sc += 3;
+      if (sc > bs) { bs = sc; best = p; }
+    });
+    return bs >= 2 ? best : null;
+  }
+  function tareaDe(texto, st) {
+    const ws = palabras(texto).map(w => w.replace(/(e|é)$/, '')); let best = null, bs = 0;
+    (st.tasks || []).filter(t => !t.done).forEach(t => { const n = Q(t.n); const sc = ws.filter(w => n.includes(w.slice(0, Math.max(4, w.length - 1)))).length; if (sc > bs) { bs = sc; best = t; } });
+    return bs >= 1 ? best : null;
+  }
+  // Marca un pago igual que el botón «Pagar» (movimiento, puntos y saldo de la deuda). Devuelve lo necesario para deshacer.
+  function pagar(st, p, quien, ahora, monto) {
+    const a = monto > 0 ? monto : p.a, prevA = p.a;
+    p.paid = true; p.by = quien; p.a = a;
+    st.moves.push({n: p.n, cat: p.cat, a, d: ahora.getDate(), w: quien});
+    st.pts[quien] = (+st.pts[quien] || 0) + 15;
+    const dbt = p.debt ? (st.debts || []).find(x => x.id === p.debt) : null, red = dbt ? Math.min(a, dbt.saldo) : 0;
+    if (dbt) dbt.saldo -= red;
+    return {prevA, red, mv: st.moves.length - 1};
+  }
+  // ¿Es un mensaje de un banco? (Bancolombia, Nequi, Davivienda…) y qué tipo de movimiento
+  const BANCO = /\b(bancolombia|nequi|davivienda|daviplata|bbva|banco de bogota|bogota|scotiabank|colpatria|av villas|falabella|nu colombia|itau|banco popular|occidente|caja social|lulo|rappipay|movii)\b/;
+  function banco(texto) {
+    const t = Q(texto); if (!BANCO.test(t)) return null;
+    const monto = Aprende.pure.monto(texto); if (!monto) return null;
+    const entra = /\b(recibiste|te consignaron|consignacion recibida|abono a tu cuenta|te enviaron|recibio una transferencia|deposito)\b/.test(t);
+    const m = t.match(/\b(?:en|a|por compra en|pago a|pago en|transferencia a)\s+([a-z0-9ñ&.* ]{3,40}?)(?:\s+(?:desde|con|el|por|t\.?|cta|tarjeta|\d)|[.,]|$)/);
+    return {monto, entra, comercio: m ? m[1].trim() : ''};
+  }
+
   /* ===== 2. Intención ===== */
   const RX = {
     recordar: /\b(recuerd[ae]me|recuerdanos|recuerdale|recordarme|recordarnos|avisame|avisanos|no me dejes olvidar|recordatorio|alarma)\b/,
@@ -90,6 +127,9 @@ const Asistente = (function () {
   function intencion(texto, st, ahora) {
     const t = Q(texto).trim(), c = Aprende.clasificar(texto, {cats: st.cats, hoy: ahora});
     if (RX.ayuda.test(t)) return {tipo: 'ayuda'};
+    const bk = banco(texto); if (bk) return {tipo: 'banco', bk, c};
+    if (/\b(ya )?(pague|pagamos|pagaron|pagó|pago listo|cancele|cancelamos|ya quedo pago|quedo pago)\b/.test(t) && !/\b(gaste|gastamos|compre|compramos)\b/.test(t)) { const p = pagoDe(texto, st, c.monto); if (p) return {tipo: 'pagado', p, c}; }
+    if (/^(ya )?(hice|hicimos|lave|lavamos|limpie|limpiamos|saque|sacamos|bane|banamos|organice|organizamos|arregle|arreglamos|termine|terminamos|recogi|recogimos|cocine|barri|trapee|compre|compramos|llame|llamamos|listo|hecho|ya quedo)\b/.test(t) && !c.monto) { const tk = tareaDe(texto, st); if (tk) return {tipo: 'hecho', tk}; }
     if (RX.listaRec.test(t) && !RX.recordar.test(t.replace(/\b(mis recordatorios|recordatorios)\b/, ''))) return {tipo: 'listaRec'};
     if (RX.recordar.test(t)) return {tipo: 'recordatorio', c};
     if (RX.consejo.test(t)) return {tipo: 'consejo'};
@@ -141,7 +181,7 @@ const Asistente = (function () {
   }
 
   /* ===== 4. Respuestas ===== */
-  const AYUDA = (w) => `Soy ${perro(w)}, tu asistente. Escríbeme como a una amiga:\n• «Necesito comprar leche para hoy» → creo la tarea y te la recuerdo.\n• «Recuérdame pagar el internet mañana a las 8» → recordatorio con aviso.\n• «Gasté 45 mil en el cine» → registro el gasto.\n• «¿Cuánto nos queda?», «pagos pendientes», «mis recordatorios».\n• «Dame un consejo» → te respondo con sus números reales.\nSolo te digo lo que está en Rumbo: si no tengo un dato, te lo digo.`;
+  const AYUDA = (w) => `Soy ${perro(w)}, tu asistente. Escríbeme como a una amiga:\n• «Necesito comprar leche para hoy» → creo la tarea y te la recuerdo.\n• «Recuérdame pagar el internet mañana a las 8» → recordatorio con aviso.\n• «Gasté 45 mil en el cine» → registro el gasto.\n• «Ya pagué el arriendo» → lo marco pago. «Ya lavé la loza» → tarea hecha.\n• «¿Cuánto nos queda?», «pagos pendientes», «mis recordatorios».\n• «Dame un consejo» → te respondo con sus números reales.\nSolo te digo lo que está en Rumbo: si no tengo un dato, te lo digo.`;
   function pregunta(texto, st, ahora) {
     const r = Aprende.responder(texto, st, ahora);
     if (/^No supe responder/.test(r.texto)) return {texto: 'Eso no lo tengo en Rumbo, así que prefiero no inventarlo. Sí te puedo decir cuánto les queda, los gastos de la semana, los pagos pendientes, cómo van las metas, las tareas o el marcador.'};
@@ -159,6 +199,30 @@ const Asistente = (function () {
   const isoMin = d => new Date(Math.round(d.getTime() / 60000) * 60000).toISOString();
   function ejecutar(texto, st, perfil, ahora, deNota) {
     const it = intencion(texto, st, ahora), otroW = perfil === 'D' ? 'V' : 'D';
+    if (it.tipo === 'pagado') {
+      const p = it.p, u = pagar(st, p, perfil, ahora, it.c.monto && Math.abs(it.c.monto - p.a) <= p.a * .5 ? it.c.monto : 0);
+      const dbt = p.debt ? (st.debts || []).find(x => x.id === p.debt) : null;
+      return {texto: `Listo: ${p.n} quedó pago por ${fmtN(p.a)} · +15 puntos para ${perfil === 'D' ? 'David' : 'Vale'}.${dbt ? (dbt.saldo > 0 ? ` A la deuda le faltan ${fmtN(dbt.saldo)}.` : ' ¡Y la deuda quedó saldada!') : ''}`, card: {tipo: 'pago', ref: p.id, a: u.prevA, t: String(u.red)}};
+    }
+    if (it.tipo === 'hecho') {
+      const tk = it.tk; tk.done = true; st.pts[tk.w] = (+st.pts[tk.w] || 0) + tk.p;
+      (st.recordatorios || []).forEach(r => { if (r.tarea === tk.id) r.hecho = true; });
+      return {texto: `¡Bien! Marqué «${tk.n}» como hecha · +${tk.p} puntos para ${nom(tk.w)}.`, card: {tipo: 'hechoTarea', ref: tk.id}};
+    }
+    if (it.tipo === 'banco') {
+      const bk = it.bk;
+      if (bk.entra) return {texto: `Vi en tu banco un ingreso de ${fmtN(bk.monto)}. No lo sumo solo: dime si es parte del sueldo o algo aparte.`};
+      const p = pagoDe(`${bk.comercio} ${texto}`, st, bk.monto);
+      if (p && Math.abs(bk.monto - p.a) <= p.a * .03) {
+        const u = pagar(st, p, perfil, ahora, bk.monto), dbt = p.debt ? (st.debts || []).find(x => x.id === p.debt) : null;
+        return {texto: `Lo vi en tu banco: ${p.n} quedó pago por ${fmtN(bk.monto)}.${dbt && dbt.saldo > 0 ? ` A la deuda le faltan ${fmtN(dbt.saldo)}.` : ''}`, card: {tipo: 'pago', ref: p.id, a: u.prevA, t: String(u.red)}};
+      }
+      const cat = Aprende.pure.categoria(`${bk.comercio} ${texto}`, st.cats), catOk = st.cats.some(x => x.id === cat) ? cat : (st.cats.find(x => !x.saving) || {}).id;
+      const nombre = bk.comercio ? bk.comercio.replace(/\b\w/g, l => l.toUpperCase()).slice(0, 40) : 'Compra con tarjeta';
+      st.moves.push({n: nombre, cat: catOk, a: bk.monto, d: ahora.getDate(), w: perfil});
+      const out = st.moves.reduce((a, m) => a + m.a, 0), catN = ((st.cats.find(x => x.id === catOk) || {}).n || '').split(' (')[0];
+      return {texto: `Lo vi en tu banco: ${fmtN(bk.monto)} en ${nombre}. Lo anoté en ${catN || 'gastos'}. Les quedan ${fmtN(st.income - out)} este mes.`, card: {tipo: 'gasto', ref: String(st.moves.length - 1), a: bk.monto}};
+    }
     if (it.tipo === 'recordatorio') {
       const at = cuando(texto, ahora), t = titulo(texto) || 'Lo que me pediste';
       if (!at) return {texto: `¿Para cuándo te recuerdo «${t}»? Escríbeme por ejemplo «hoy a las 6 pm» o «mañana a las 8».`, card: {tipo: 'pedirHora', t}};
@@ -211,5 +275,5 @@ const Asistente = (function () {
     timer = setInterval(tick, 30000); setTimeout(tick, 4000);
   }
 
-  return {ejecutar, vigilar, perro, cuandoTxt, pure: {hora, cuando, titulo, intencion, consejo, whenTarea}};
+  return {ejecutar, vigilar, perro, cuandoTxt, pure: {hora, cuando, titulo, intencion, consejo, whenTarea, banco, pagoDe, tareaDe}};
 })();
