@@ -78,7 +78,7 @@ const Nube = (function () {
     if (listo) return;
     // Si la nube no responde en 20 s, mostrar "No pudimos conectar" con Reintentar en vez de cargar para siempre
     const snap = await Promise.race([ref.get({source: 'server'}).catch(() => ref.get()), new Promise((_, no) => setTimeout(() => no({code: 'unavailable', message: 'La nube tardó demasiado en responder. Revisen el internet e intenten de nuevo.'}), 20000))]);
-    if (snap.exists && snap.data().json) { aplicar(snap.data(), false); listo = true; escuchar(); return; }
+    if (snap.exists && snap.data().json) { aplicar(snap.data(), false); listo = true; escuchar(); if (!snap.data().resumen) { lastJson = ''; setTimeout(subir, 1500); } return; }
     // La nube está vacía: hay que decidir de dónde salen los datos
     await new Promise(res => { conectar.fin = res; pintar('vacia'); });
   }
