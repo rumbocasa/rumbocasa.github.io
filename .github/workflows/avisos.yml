@@ -24,6 +24,7 @@ jobs:
       - run: npm install --no-save --no-audit --no-fund firebase-admin@12.7.0 web-push@3.6.7
       - run: node robot-avisos.mjs
         env:
+          TZ: America/Bogota
           FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
           PRUEBA: ${{ inputs.prueba && 'si' || '' }}
