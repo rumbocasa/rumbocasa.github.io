@@ -105,12 +105,15 @@ const Asistente = (function () {
     return {prevA, red, mv: st.moves.length - 1};
   }
   // ¿Es un mensaje de un banco? (Bancolombia, Nequi, Davivienda…) y qué tipo de movimiento
-  const BANCO = /\b(bancolombia|nequi|davivienda|daviplata|bbva|banco de bogota|bogota|scotiabank|colpatria|av villas|falabella|nu colombia|itau|banco popular|occidente|caja social|lulo|rappipay|movii)\b/;
+  const BANCO = /\b(bancolombia|nequi|davivienda|daviplata|bbva|banco de bogota|bogota|scotiabank|colpatria|av villas|falabella|nu|nu colombia|nu c\.?f\.?|nubank|bre-?b|itau|banco popular|occidente|caja social|lulo|rappipay|movii)\b/;
   function banco(texto) {
     const t = Q(texto); if (!BANCO.test(t)) return null;
-    const monto = Aprende.pure.monto(texto); if (!monto) return null;
+    // Si el mensaje trae «Monto $X» (sin el 4x1000) se usa ese; si no, el primer valor que aparezca
+    const mm = Q(texto).replace(/monto total/g, 'total').match(/\bmonto\s*:?\s*\$?\s*([\d.]+(?:,\d{1,2})?)/);
+    const monto = mm ? Aprende.pure.monto('$' + mm[1].replace(/,\d{1,2}$/, '')) : Aprende.pure.monto(texto.replace(/,\d{2}\b/g, '')); if (!monto) return null;
     const entra = /\b(recibiste|te consignaron|consignacion recibida|abono a tu cuenta|te enviaron|recibio una transferencia|deposito)\b/.test(t);
-    const m = t.match(/\b(?:en|a|por compra en|pago a|pago en|transferencia a)\s+([a-z0-9ñ&.* ]{3,40}?)(?:\s+(?:desde|con|el|por|t\.?|cta|tarjeta|\d)|[.,]|$)/);
+    const m = t.match(/\b(?:para|nombre|a nombre de)\s*:?\s+([a-zñ][a-zñ ]{5,60}?)(?:\s+(?:entidad|llave|cuenta|estado|desde|con|por|el|\d)|[.,]|$)/) ||
+      t.match(/\b(?:en|a|por compra en|pago a|pago en|transferencia a|enviaste a)\s+([a-z0-9ñ&.* ]{3,40}?)(?:\s+(?:desde|con|el|por|t\.?|cta|tarjeta|\d)|[.,]|$)/);
     return {monto, entra, comercio: m ? m[1].trim() : ''};
   }
 
@@ -127,6 +130,7 @@ const Asistente = (function () {
   function intencion(texto, st, ahora) {
     const t = Q(texto).trim(), c = Aprende.clasificar(texto, {cats: st.cats, hoy: ahora});
     if (RX.ayuda.test(t)) return {tipo: 'ayuda'};
+    if (/programa de gmail/.test(t) && /conexion/.test(t)) return {tipo: 'gmailOk'};
     const bk = banco(texto); if (bk) return {tipo: 'banco', bk, c};
     if (/\b(ya )?(pague|pagamos|pagaron|pagó|pago listo|cancele|cancelamos|ya quedo pago|quedo pago)\b/.test(t) && !/\b(gaste|gastamos|compre|compramos)\b/.test(t)) { const p = pagoDe(texto, st, c.monto); if (p) return {tipo: 'pagado', p, c}; }
     if (/^(ya )?(hice|hicimos|lave|lavamos|limpie|limpiamos|saque|sacamos|bane|banamos|organice|organizamos|arregle|arreglamos|termine|terminamos|recogi|recogimos|cocine|barri|trapee|compre|compramos|llame|llamamos|listo|hecho|ya quedo)\b/.test(t) && !c.monto) { const tk = tareaDe(texto, st); if (tk) return {tipo: 'hecho', tk}; }
@@ -251,6 +255,7 @@ const Asistente = (function () {
     if (it.tipo === 'pregunta') return pregunta(texto, st, ahora);
     if (it.tipo === 'listaRec') return listaRec(st, perfil, ahora);
     if (it.tipo === 'ayuda') return {texto: AYUDA(perfil)};
+    if (it.tipo === 'gmailOk') return {texto: '¡Conexión con tu Gmail lista! Desde ahora leo los correos de tu banco: si es un pago fijo (como el arriendo) lo marco pagado, y si es una compra la anoto en su categoría. Siempre te aviso y lo puedes deshacer.'};
     if (it.tipo === 'saludo') { const h = ahora.getHours(); return {texto: `${h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${nom(perfil)}. ¿Qué anotamos hoy? Puedes escribirme una tarea, un recordatorio, un gasto o pedirme un consejo.`}; }
     if (it.tipo === 'gracias') return {texto: elegir(['Con gusto. Aquí estoy.', '¡Para eso estoy! Cualquier cosa, me escribes.', 'De nada. Un paso a la vez, y juntos.'], texto.length)};
     if (it.tipo === 'idea' || it.tipo === 'plan') return {texto: `Guardé tu ${it.tipo === 'idea' ? 'idea' : 'plan'}. ¿Lo vuelvo proyecto o tarea?`, card: {tipo: 'idea'}};
