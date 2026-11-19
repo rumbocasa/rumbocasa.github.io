@@ -111,7 +111,12 @@ const Asistente = (function () {
     // Si el mensaje trae «Monto $X» (sin el 4x1000) se usa ese; si no, el primer valor que aparezca
     const mm = Q(texto).replace(/monto total/g, 'total').match(/\bmonto\s*:?\s*\$?\s*([\d.]+(?:,\d{1,2})?)/);
     const monto = mm ? Aprende.pure.monto('$' + mm[1].replace(/,\d{1,2}$/, '')) : Aprende.pure.monto(texto.replace(/,\d{2}\b/g, '')); if (!monto) return null;
-    const entra = /\b(recibiste|te consignaron|consignacion recibida|abono a tu cuenta|te enviaron|recibio una transferencia|deposito)\b/.test(t);
+    // Compras rechazadas o fallidas: no movieron plata, no se anotan
+    const rechazo = /\b(faltan fondos|fondos insuficientes|falta de fondos|se rechazo|fue rechazad|rechazamos|no se pudo (realizar|completar|procesar)|no fue posible|transaccion (fallida|declinada|rechazada)|declinad)/.test(t);
+    // Ingreso: solo si lo dice el asunto o el comienzo (los pies de correo traen «recibiste este correo…»)
+    const inicio = t.replace(/recibiste este (correo|mensaje)[^.]*/g, '').slice(0, 220);
+    const entra = !rechazo && /\b(recibiste|te consignaron|consignacion recibida|abono a tu cuenta|te enviaron|recibio una transferencia|deposito)\b/.test(inicio);
+    if (rechazo) return {monto, entra: false, rechazo: true, comercio: ((t.match(/\b(?:pagar|compra)\s+(?:de\s+\$?[\d.,]+\s+)?en\s+([a-z0-9ñ&.* ]{3,40}?)(?:[.,]|\s+tu\b|$)/) || [])[1] || '').trim()};
     const m = t.match(/\b(?:para|nombre|a nombre de)\s*:?\s+([a-zñ][a-zñ ]{5,60}?)(?:\s+(?:entidad|llave|cuenta|estado|desde|con|por|el|\d)|[.,]|$)/) ||
       t.match(/\b(?:en|a|por compra en|pago a|pago en|transferencia a|enviaste a)\s+([a-z0-9ñ&.* ]{3,40}?)(?:\s+(?:desde|con|el|por|t\.?|cta|tarjeta|\d)|[.,]|$)/);
     return {monto, entra, comercio: m ? m[1].trim() : ''};
@@ -215,6 +220,7 @@ const Asistente = (function () {
     }
     if (it.tipo === 'banco') {
       const bk = it.bk;
+      if (bk.rechazo) return {texto: `Tu banco rechazó una compra de ${fmtN(bk.monto)}${bk.comercio ? ' en ' + bk.comercio.replace(/\b\w/g, l => l.toUpperCase()) : ''}: no se movió plata, así que no anoto nada.`};
       if (bk.entra) return {texto: `Vi en tu banco un ingreso de ${fmtN(bk.monto)}. No lo sumo solo: dime si es parte del sueldo o algo aparte.`};
       const p = pagoDe(`${bk.comercio} ${texto}`, st, bk.monto);
       if (p && Math.abs(bk.monto - p.a) <= p.a * .03) {
