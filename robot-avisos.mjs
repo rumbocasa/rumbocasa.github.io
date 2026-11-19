@@ -131,6 +131,44 @@ async function vuelta() {
     avisos.push({para: r.para === 'D' || r.para === 'V' ? r.para : 'A', title: `${r.para === 'D' ? 'Oreo' : 'Coral'} te recuerda`, body: r.t, url: APP + '#apuntes', key: `rec:${r.id}:${r.at}`, tag: `rec-${r.id}`});
   }
 
+  // 5. Lo que hizo el otro: pagos marcados, gastos y abonos anotados, tareas hechas (de 7 a. m. a 10 p. m.;
+  //    lo de la noche espera a la mañana). Varios seguidos se agrupan en un solo aviso.
+  const hechos = est.hechos || {}, movsAntes = est.movs || null, movsAhora = {}, nuevos = {V: [], D: []};
+  for (const m of S.moves || []) { const k = `${m.n}|${m.a}|${m.d}|${m.w}`; movsAhora[k] = (movsAhora[k] || 0) + 1; }
+  const despierto = H.h >= 7 && H.h <= 22, base = !est.hechos;
+  if (despierto || base) {
+    const catN = id => ((S.cats || []).find(c => c.id === id) || {}).n || 'Gastos';
+    for (const p of S.pays || []) {
+      const k = `pago:${p.id}`;
+      if (!p.paid) { delete hechos[k]; continue; }
+      if (hechos[k]) continue; hechos[k] = 1;
+      if (!base && (p.by === 'V' || p.by === 'D')) nuevos[p.by].push(`pagó ${p.n} · ${fmt(p.a)}`);
+    }
+    for (const t of S.tasks || []) {
+      const k = `tarea:${t.id}`;
+      if (!t.done) { delete hechos[k]; continue; }
+      if (hechos[k]) continue; hechos[k] = 1;
+      if (!base && (t.w === 'V' || t.w === 'D')) nuevos[t.w].push(`hizo «${t.n}»`);
+    }
+    if (movsAntes && !base) for (const [k, c] of Object.entries(movsAhora)) {
+      const extra = c - (movsAntes[k] || 0); if (extra <= 0) continue;
+      const m = (S.moves || []).find(x => `${x.n}|${x.a}|${x.d}|${x.w}` === k);
+      if (!m || (m.w !== 'V' && m.w !== 'D') || /^Pago ·/.test(m.n) || (S.pays || []).some(p => p.n === m.n && p.a === m.a)) continue; // los pagos ya se avisan arriba
+      for (let i = 0; i < extra; i++) nuevos[m.w].push(m.cat === 'ahorro' ? `abonó ${fmt(m.a)} a ${m.n.replace(/^Abono · /, '')}` : `anotó ${fmt(m.a)} en ${m.n || catN(m.cat)}`);
+    }
+    for (const q of ['V', 'D']) {
+      const l = nuevos[q]; if (!l.length) continue;
+      const firma = l.join('·').slice(0, 60);
+      avisos.push({para: OTRO[q], title: l.length === 1 ? `${NOMBRE[q]} ${l[0].split(' · ')[0]}` : `${NOMBRE[q]} registró ${l.length} cosas`, body: l.length === 1 ? `${l[0][0].toUpperCase() + l[0].slice(1)}. Ya quedó en Rumbo.` : l.map(x => x[0].toUpperCase() + x.slice(1)).join('\n').slice(0, 220), url: APP + '#finanzas', key: `hizo:${q}:${Date.now()}:${firma}`, tag: `hizo-${q}`});
+    }
+  }
+
+  // 6. El widget se refresca solo cuando cambian los datos (también si nadie abre la app: días que quedan, etc.)
+  if (S.widgetTok) {
+    const r = resumenDe(S), {at, ...sin} = r, firma = JSON.stringify(sin);
+    if (firma !== est.widgetFirma) { await casa.collection('widget').doc(S.widgetTok).set({resumen: r, at: admin.firestore.FieldValue.serverTimestamp()}); est.widgetFirma = firma; }
+  }
+
   let n = 0;
   for (const a of avisos) {
     if (enviados[a.key]) continue;
@@ -147,7 +185,8 @@ async function vuelta() {
   // Se olvidan las marcas de más de 40 días para que el estado no crezca
   const lim = Date.now() - 40 * 864e5;
   for (const k of Object.keys(enviados)) if (enviados[k] < lim) delete enviados[k];
-  await estRef.set({enviados, chatDesde: ultimo, corrida: new Date().toISOString(), avisos: avisos.length, enviadosAhora: n});
+  await estRef.set({enviados, chatDesde: ultimo, corrida: new Date().toISOString(), avisos: avisos.length, enviadosAhora: n,
+    hechos, movs: despierto || base ? movsAhora : (movsAntes || movsAhora), widgetFirma: est.widgetFirma || null});
   console.log(`Avisos: ${avisos.length} posibles · ${n} enviados · ${subs.length} celulares`);
 }
 // Cada corrida (GitHub la lanza más o menos cada hora) se queda ~52 minutos revisando cada 2 minutos:
